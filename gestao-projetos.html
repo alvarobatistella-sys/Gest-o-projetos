@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Acompanhamento por consultor</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f1f5f9;color:#193049;font:14px Arial}
+header{background:#003b70;color:white;padding:22px;display:flex;gap:20px;align-items:center}
+header h1{font-size:23px;margin:0 0 7px}
+.brand{flex:1}
+.logo{background:white;color:#003b70;width:110px;height:64px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;text-align:center;padding:6px}
+.logo img{max-width:100%;max-height:50px}
+main{max-width:1450px;margin:auto;padding:24px}
+button,.button{background:#003b70;color:white;border:0;border-radius:7px;padding:11px 14px;cursor:pointer;font:inherit;display:inline-block}
+.light{background:#e4edf6;color:#003b70}
+.danger{background:#fff0ee;color:#a42b24}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+input,select{padding:10px;border:1px solid #c4d0dc;border-radius:6px;font:inherit;background:white;color:#193049}
+.row input{flex:1}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:15px}
+.card,.panel{background:white;border:1px solid #dde5ed;border-radius:12px;padding:20px;margin-bottom:20px}
+.card b{display:block;font-size:29px;margin-bottom:7px;color:#003b70}
+h2{font-size:19px;margin:0 0 16px}
+.muted{color:#62768a;font-size:13px;line-height:1.5}
+.scroll{overflow:auto}
+table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:13px}
+td,th{padding:13px 10px;text-align:left;border-bottom:1px solid #e4ebf2}
+th{color:#62768a;background:#f8fafc}
+td button{padding:7px;margin-right:5px}
+.bar{width:130px;height:7px;background:#e5edf4;border-radius:8px;overflow:hidden;margin-top:7px}
+.bar i{display:block;background:#148a78;height:100%}
+.badge{padding:5px 8px;background:#eef3f8;border-radius:15px;display:inline-block}
+.late{color:#ab3025;background:#fff0ec}
+.done{color:#087261;background:#e1f5ef}
+dialog{border:0;border-radius:12px;padding:24px;width:min(720px,95vw);max-height:92vh;overflow:auto}
+dialog::backdrop{background:#102a4699}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+label.field{display:block;font-weight:bold;font-size:13px;margin-bottom:12px}
+.field input,.field select{display:block;width:100%;margin-top:6px;font-weight:normal}
+fieldset{border:1px solid #d7e1eb;border-radius:8px;margin:12px 0;padding:15px}
+legend{font-weight:bold}
+.chip{display:inline-flex;gap:8px;align-items:center;background:#eaf1f8;padding:5px 9px;border-radius:15px;margin:4px}
+.chip button{padding:1px 5px;background:transparent;color:#9b3027}
+#takes{margin-bottom:12px}
+footer{color:#62768a;line-height:1.6;font-size:12px}
+@media(max-width:700px){
+.cards,.grid{grid-template-columns:1fr 1fr}
+main{padding:12px}header{padding:14px;gap:10px}
+header h1{font-size:18px}.logo{width:72px;flex-shrink:0}
+.row input,.row select{width:100%;flex:auto}
+}
+</style>
+<header>
+<label class="logo"><span id="logo0">Logotipo 1</span><input hidden type="file" accept="image/png,image/jpeg,image/webp" data-logo="0"></label>
+<div class="brand"><h1>Acompanhamento de trabalhos</h1><div>Filmagem e análise · Planejado × realizado</div></div>
+<label class="logo"><span id="logo1">Logotipo 2</span><input hidden type="file" accept="image/png,image/jpeg,image/webp" data-logo="1"></label>
+</header>
+<main>
+<div class="row">
+<button id="new">+ Novo trabalho</button>
+<input id="search" placeholder="Buscar trabalho, linha ou tomada" aria-label="Buscar">
+<select id="consultant" aria-label="Filtrar consultor"></select>
+<select id="type" aria-label="Filtrar tipo"><option value="">Todos os tipos</option><option>Filmagem</option><option>Análise</option></select>
+<button id="export" class="light">Exportar backup</button>
+<label class="button light">Importar backup<input id="import" type="file" accept=".json" hidden></label>
+</div>
+<div id="cards" class="cards"></div>
+<section class="panel">
+<h2>Dashboard por consultor</h2>
+<p class="muted">Os indicadores respeitam os filtros. Horas são calculadas entre início e término, incluindo intervalos. Horas realizadas consideram somente trabalhos encerrados.</p>
+<div class="scroll"><table>
+<thead><tr><th>Consultor</th><th>Trabalhos</th><th>Concluídos</th><th>Atrasados*</th><th>Planejado</th><th>Realizado</th><th>Desvio de duração**</th><th>Progresso</th></tr></thead>
+<tbody id="dashboard"></tbody>
+</table></div>
+<p class="muted">* Abertos com prazo vencido. ** Horas realizadas menos horas planejadas, apenas dos trabalhos concluídos. Valor positivo indica duração maior que a prevista.</p>
+</section>
+<section class="panel">
+<h2>Trabalhos e tomadas</h2>
+<div class="scroll"><table>
+<thead><tr><th>Trabalho</th><th>Consultor</th><th>Modelo / tipo</th><th>Tomadas</th><th>Planejado</th><th>Realizado</th><th>Situação</th><th>Ações</th></tr></thead>
+<tbody id="jobs"></tbody>
+</table></div>
+</section>
+<footer>Dados armazenados neste navegador, sem sincronização entre computadores. Exporte um backup regularmente. Cada registro possui um consultor, um tipo e um período; para horários diferentes por tomada ou para filmagem e análise do mesmo trabalho, crie registros separados.</footer>
+</main>
+
+<dialog id="modal">
+<form id="form">
+<h2 id="title">Novo trabalho</h2>
+<label class="field">Nome do trabalho<input name="name" required maxlength="160"></label>
+<div class="grid">
+<label class="field">Consultor<input name="owner" list="people" required maxlength="100"><datalist id="people"></datalist></label>
+<label class="field">Nome da linha<input name="line" maxlength="100"></label>
+<label class="field">Modelo<select name="model"><option>HB20</option><option>I20</option><option>Creta</option></select></label>
+<label class="field">Tipo<select name="kind"><option>Filmagem</option><option>Análise</option></select></label>
+</div>
+<fieldset><legend>Tomadas</legend>
+<div class="row"><input id="takeInput" placeholder="Ex.: Tomada 1" aria-label="Nome da tomada"><button type="button" id="addTake" class="light">Acrescentar</button></div>
+<div id="takes"></div>
+</fieldset>
+<fieldset><legend>Planejado</legend>
+<div class="grid">
+<label class="field">Início: data e hora<input name="ps" type="datetime-local" required></label>
+<label class="field">Término: data e hora<input name="pe" type="datetime-local" required></label>
+</div></fieldset>
+<fieldset><legend>Realizado</legend>
+<p class="muted">Preencha o início quando começar e o término quando concluir. Deixe em branco enquanto não houver execução.</p>
+<div class="grid">
+<label class="field">Início: data e hora<input name="rs" type="datetime-local"></label>
+<label class="field">Término: data e hora<input name="re" type="datetime-local"></label>
+</div></fieldset>
+<div class="row"><button>Salvar trabalho</button><button type="button" id="cancel" class="light">Cancelar</button></div>
+</form>
+</dialog>
+
+<script>
+"use strict";
+const $=s=>document.querySelector(s);
+const key="acompanhamento-consultores-v1";
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const id=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
+const fmt=v=>v?new Date(v).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}):"—";
+const hours=(a,b)=>a&&b?(new Date(b)-new Date(a))/3600000:0;
+const number=n=>n.toLocaleString("pt-BR",{maximumFractionDigits:1})+" h";
+const isLate=j=>!j.re&&new Date(j.pe)<new Date();
+const canonical=s=>s.trim().replace(/\s+/g," ");
+let state={jobs:[],logos:["",""]},editing=null,takes=[],writable=true;
+
+function valid(s){
+ const text=v=>typeof v==="string";
+ const dt=v=>text(v)&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v)&&Number.isFinite(Date.parse(v));
+ return s&&Array.isArray(s.jobs)&&Array.isArray(s.logos)&&s.logos.length===2
+ &&s.logos.every(v=>text(v)&&(!v||/^data:image\/(png|jpeg|webp);base64,/.test(v)))
+ &&s.jobs.every(j=>j&&["id","name","owner","line","rs","re"].every(k=>text(j[k]))
+ &&j.name.trim()&&j.owner.trim()
+ &&["HB20","I20","Creta"].includes(j.model)&&["Filmagem","Análise"].includes(j.kind)
+ &&Array.isArray(j.takes)&&j.takes.every(text)
+ &&dt(j.ps)&&dt(j.pe)&&j.ps<j.pe
+ &&(!j.rs||dt(j.rs))&&(!j.re||dt(j.re))
+ &&(!j.re||(j.rs&&j.re>=j.rs)))
+ &&new Set(s.jobs.map(j=>j.id)).size===s.jobs.length;
+}
+try{
+ const raw=localStorage.getItem(key);
+ if(raw){const s=JSON.parse(raw);if(!valid(s))throw Error();state=s;}
+}catch(e){
+ writable=false;
+ alert("Não foi possível carregar os dados locais. Eles não serão sobrescritos automaticamente. Importe um backup válido para restaurar o armazenamento.");
+}
+function save(){
+ if(writable){
+ try{localStorage.setItem(key,JSON.stringify(state));}
+ catch(e){alert("Falha ao salvar: exporte um backup antes de fechar a página.");}
+ }else alert("As alterações estão apenas na memória. Exporte um backup antes de fechar.");
+ render();
+}
+const owners=()=>[...new Set(state.jobs.map(j=>j.owner))].sort((a,b)=>a.localeCompare(b));
+function render(){
+ const selected=$("#consultant").value;
+ $("#consultant").innerHTML='<option value="">Todos os consultores</option>'+
+ owners().map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join("");
+ if(owners().includes(selected))$("#consultant").value=selected;
+ $("#people").innerHTML=owners().map(o=>`<option value="${esc(o)}">`).join("");
+ const query=$("#search").value.toLocaleLowerCase();
+ const list=state.jobs.filter(j=>
+ (!$("#consultant").value||j.owner===$("#consultant").value)&&
+ (!$("#type").value||j.kind===$("#type").value)&&
+ `${j.name} ${j.line} ${j.takes.join(" ")}`.toLocaleLowerCase().includes(query));
+ $("#cards").innerHTML=[
+ ["Trabalhos",list.length],
+ ["Concluídos",list.filter(j=>j.re).length],
+ ["Em andamento",list.filter(j=>j.rs&&!j.re).length],
+ ["Atrasados",list.filter(isLate).length]
+ ].map(([label,value])=>`<div class="card"><b>${value}</b>${label}</div>`).join("");
+ const grouped=[...new Set(list.map(j=>j.owner))].sort((a,b)=>a.localeCompare(b));
+ $("#dashboard").innerHTML=grouped.map(owner=>{
+ const jobs=list.filter(j=>j.owner===owner),closed=jobs.filter(j=>j.re);
+ const planned=jobs.reduce((s,j)=>s+hours(j.ps,j.pe),0);
+ const actual=closed.reduce((s,j)=>s+hours(j.rs,j.re),0);
+ const delta=actual-closed.reduce((s,j)=>s+hours(j.ps,j.pe),0);
+ const pct=Math.round(closed.length/jobs.length*100);
+ return `<tr><td><b>${esc(owner)}</b></td><td>${jobs.length}</td><td>${closed.length}</td>
+ <td>${jobs.filter(isLate).length}</td><td>${number(planned)}</td><td>${number(actual)}</td>
+ <td>${closed.length?(delta>0?"+":"")+number(delta):"—"}</td>
+ <td>${pct}%<div class="bar"><i style="width:${pct}%"></i></div></td></tr>`;
+ }).join("")||'<tr><td colspan="8">Cadastre um trabalho para começar o acompanhamento.</td></tr>';
+ $("#jobs").innerHTML=list.slice().sort((a,b)=>a.ps.localeCompare(b.ps)).map(j=>{
+ const status=j.re?(j.re>j.pe?"Concluído após o prazo":"Concluído"):isLate(j)?"Atrasado":j.rs?"Em andamento":"Planejado";
+ return `<tr><td><b>${esc(j.name)}</b><br><span class="muted">${esc(j.line)}</span></td>
+ <td>${esc(j.owner)}</td><td>${esc(j.model)}<br>${esc(j.kind)}</td>
+ <td>${j.takes.map(esc).join(", ")||"—"}</td>
+ <td>${fmt(j.ps)}<br>${fmt(j.pe)}<br><span class="muted">${number(hours(j.ps,j.pe))}</span></td>
+ <td>${fmt(j.rs)}<br>${fmt(j.re)}<br><span class="muted">${j.re?number(hours(j.rs,j.re)):""}</span></td>
+ <td><span class="badge ${j.re?"done":isLate(j)?"late":""}">${status}</span></td>
+ <td><button class="light" data-edit="${esc(j.id)}">Editar</button><button class="danger" data-delete="${esc(j.id)}">Excluir</button></td></tr>`;
+ }).join("")||'<tr><td colspan="8">Nenhum trabalho encontrado.</td></tr>';
+ state.logos.forEach((src,i)=>{
+ const box=$("#logo"+i);box.replaceChildren();
+ if(src){const img=document.createElement("img");img.src=src;img.alt="Logotipo "+(i+1);box.append(img);}
+ else box.textContent="Logotipo "+(i+1);
+ });
+}
+function renderTakes(){
+ $("#takes").innerHTML=takes.map((t,i)=>`<span class="chip">${esc(t)}<button type="button" data-remove="${i}" aria-label="Remover ${esc(t)}">×</button></span>`).join("")||'<span class="muted">Nenhuma tomada adicionada.</span>';
+}
+function addTake(){
+ const value=canonical($("#takeInput").value);
+ if(value&&!takes.some(t=>t.toLocaleLowerCase()===value.toLocaleLowerCase()))takes.push(value);
+ $("#takeInput").value="";renderTakes();
+}
+$("#addTake").onclick=addTake;
+$("#takeInput").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();addTake();}};
+$("#takes").onclick=e=>{
+ const b=e.target.closest("[data-remove]");
+ if(b){takes.splice(Number(b.dataset.remove),1);renderTakes();}
+};
+function open(j){
+ editing=j?.id??null;$("#form").reset();$("#takeInput").value="";
+ $("#title").textContent=j?"Editar trabalho":"Novo trabalho";
+ takes=j?[...j.takes]:[];
+ if(j)for(const k of ["name","owner","line","model","kind","ps","pe","rs","re"])$("#form").elements[k].value=j[k];
+ renderTakes();$("#modal").showModal();
+}
+$("#new").onclick=()=>open();
+$("#cancel").onclick=()=>$("#modal").close();
+$("#form").onsubmit=e=>{
+ e.preventDefault();
+ addTake();
+ const j=Object.fromEntries(new FormData(e.target));
+ for(const k of ["name","owner","line"])j[k]=canonical(j[k]);
+ const known=owners().find(o=>o.toLocaleLowerCase()===j.owner.toLocaleLowerCase());
+ if(known)j.owner=known;
+ if(!j.name||!j.owner){alert("Informe o trabalho e o consultor.");return;}
+ if(j.ps>=j.pe){alert("O término planejado deve ser posterior ao início.");return;}
+ if(j.re&&!j.rs){alert("Informe o início realizado antes do término.");return;}
+ if(j.re&&j.re<j.rs){alert("O término realizado não pode ser anterior ao início.");return;}
+ if((j.rs&&new Date(j.rs)>new Date())||(j.re&&new Date(j.re)>new Date())){
+ alert("As datas realizadas não podem estar no futuro.");return;
+ }
+ j.id=editing??id();j.takes=[...takes];
+ const i=state.jobs.findIndex(x=>x.id===editing);
+ if(i<0)state.jobs.push(j);else state.jobs[i]=j;
+ $("#modal").close();save();
+};
+$("#jobs").onclick=e=>{
+ const b=e.target.closest("button");if(!b)return;
+ if(b.dataset.edit)open(state.jobs.find(j=>j.id===b.dataset.edit));
+ if(b.dataset.delete&&confirm("Excluir este trabalho?")){
+ state.jobs=state.jobs.filter(j=>j.id!==b.dataset.delete);save();
+ }
+};
+$("#search").oninput=render;$("#consultant").onchange=render;$("#type").onchange=render;
+document.querySelectorAll("[data-logo]").forEach(input=>input.onchange=()=>{
+ const file=input.files[0];if(!file)return;
+ if(!["image/png","image/jpeg","image/webp"].includes(file.type)||file.size>1024*1024){
+ alert("Use PNG, JPG ou WebP de até 1 MB.");return;
+ }
+ const reader=new FileReader();
+ reader.onload=()=>{state.logos[Number(input.dataset.logo)]=reader.result;save();};
+ reader.onerror=()=>alert("Não foi possível ler o logotipo.");
+ reader.readAsDataURL(file);
+});
+$("#export").onclick=()=>{
+ const url=URL.createObjectURL(new Blob([JSON.stringify(state,null,2)],{type:"application/json"}));
+ const a=document.createElement("a");a.href=url;
+ a.download="backup-acompanhamento-"+new Date().toISOString().slice(0,10)+".json";
+ a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
+$("#import").onchange=async e=>{
+ const file=e.target.files[0];if(!file)return;
+ try{
+ if(file.size>6*1024*1024)throw Error();
+ const data=JSON.parse(await file.text());
+ if(!valid(data))throw Error();
+ if(confirm("Substituir todos os trabalhos e logotipos pelo conteúdo deste backup?")){
+ state=data;writable=true;save();
+ }
+ }catch(err){alert("Backup inválido ou incompatível. Os dados atuais foram mantidos.");}
+ e.target.value="";
+};
+render();
+setInterval(render,60000);
+</script>
+</html>
