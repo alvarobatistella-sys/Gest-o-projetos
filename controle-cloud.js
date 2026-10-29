@@ -86,6 +86,8 @@ function fill(row){
   $('#form').reset();
   $('#dialogTitle').textContent=row?'Editar tomada':'Adicionar tomada';
   if(row)fields.forEach(k=>$('#form').elements[k].value=(k==='take'?takeName(row.dados[k]):row.dados[k])||'');
+  $('#replaceFrom').value=$('#form').elements.take.value;
+  $('#replaceTo').value=$('#form').elements.take.value;
   previewReplacement();
   $('#editor').showModal();
 }
@@ -263,7 +265,12 @@ function previewReplacement(){
   $('#replacePreview').textContent=!from?'Informe o trecho a substituir. Ex.: 4L por 7L.':changes.length?changes.map(x=>(x.name==='line'?'Linha: ':'Tomada: ')+x.before+' → '+(x.after||'(vazio)')).join(' | '):'Nenhuma ocorrência encontrada nos campos selecionados.';
 }
 ['replaceFrom','replaceTo','replaceTarget'].forEach(id=>$('#'+id).addEventListener('input',previewReplacement));
-['line','take'].forEach(name=>$('#form').elements[name].addEventListener('input',previewReplacement));
+$('#form').elements.line.addEventListener('input',previewReplacement);
+$('#form').elements.take.addEventListener('input',()=>{
+  $('#replaceFrom').value=$('#form').elements.take.value;
+  $('#replaceTo').value=$('#form').elements.take.value;
+  previewReplacement();
+});
 $('#applyReplace').onclick=()=>{
   const changes=replacementChanges($('#form'),$('#replaceFrom').value,$('#replaceTo').value,$('#replaceTarget').value);
   changes.forEach(x=>$('#form').elements[x.name].value=x.after);
