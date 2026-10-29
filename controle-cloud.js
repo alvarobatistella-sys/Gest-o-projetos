@@ -4,7 +4,7 @@ const url = 'https://ezvnnkyovmflawrphjoo.supabase.co';
 const publishableKey = 'sb_publishable_M7uuHFZLfmuI02Ug_LlqCA_gIgstxbx';
 const db = createClient(url, publishableKey);
 const $ = s => document.querySelector(s);
-const fields = ['area','line','model','take','filmOwner','filmPlan','filmDoer','filmDone','analysisOwner','analysisPlan','analysisDoer','analysisDone'];
+const fields = ['area','line','model','shift','take','filmOwner','filmPlan','filmDoer','filmDone','analysisOwner','analysisPlan','analysisDoer','analysisDone'];
 const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clean = v => String(v ?? '').trim().replace(/\s+/g,' ');
 const today = () => new Date().toLocaleDateString('en-CA');
@@ -34,14 +34,14 @@ function render(){
   const list=rows.filter(x=>{
     const r=x.dados;
     return (!model||r.model===model)&&(!filter||status(r)===filter)&&
-      [r.area,r.line,r.model,r.take,r.filmOwner,r.filmDoer,r.analysisOwner,r.analysisDoer].join(' ').toLocaleLowerCase().includes(q);
+      [r.area,r.line,r.model,r.shift,r.take,r.filmOwner,r.filmDoer,r.analysisOwner,r.analysisDoer].join(' ').toLocaleLowerCase().includes(q);
   });
   $('#cards').innerHTML=[['Tomadas',list.length],['Filmagens realizadas',list.filter(x=>x.dados.filmDone).length],['Análises realizadas',list.filter(x=>x.dados.analysisDone).length],['Atrasadas',list.filter(x=>status(x.dados)==='late').length]].map(([a,b])=>'<div class="card"><strong>'+b+'</strong><span>'+a+'</span></div>').join('');
   $('#dashboard').innerHTML=['HB20','I20','Creta'].map(m=>{const a=list.filter(x=>x.dados.model===m),pct=a.length?Math.round(a.filter(x=>status(x.dados)==='done').length/a.length*100):0;return '<tr><td><b>'+m+'</b></td><td>'+a.length+'</td><td>'+a.filter(x=>x.dados.filmDone).length+'</td><td>'+a.filter(x=>x.dados.analysisDone).length+'</td><td>'+a.filter(x=>status(x.dados)==='late').length+'</td><td>'+pct+'%</td></tr>'}).join('');
   $('#records').innerHTML=list.slice().sort((a,b)=>a.dados.filmPlan.localeCompare(b.dados.filmPlan)).map(x=>{
     const r=x.dados, busy=locked(x);
-    return '<tr><td><b>'+esc(r.area)+'</b><div class="sub">'+esc(r.line)+'</div></td><td><b>'+esc(r.model)+'</b><div class="sub">'+esc(r.take)+'</div></td><td>'+step(r.filmOwner,r.filmPlan)+'</td><td>'+actual(r.filmDoer,r.filmDone)+'</td><td>'+step(r.analysisOwner,r.analysisPlan)+'</td><td>'+actual(r.analysisDoer,r.analysisDone)+'</td><td><span class="badge '+status(r)+'">'+labels[status(r)]+'</span>'+(busy?'<div class="sub">Em edição</div>':'')+'</td><td class="actions"><button class="secondary small" data-edit="'+esc(x.id)+'" '+(busy?'disabled title="Em edição por outra pessoa"':'')+'>Editar</button> <button class="danger small" data-delete="'+esc(x.id)+'" '+(busy?'disabled title="Em edição por outra pessoa"':'')+'>Excluir</button></td></tr>';
-  }).join('')||'<tr><td colspan="8" class="empty">Nenhuma tomada encontrada. Use “+ Adicionar tomada” para começar.</td></tr>';
+    return '<tr><td><b>'+esc(r.area)+'</b><div class="sub">'+esc(r.line)+'</div></td><td><b>'+esc(r.model)+'</b><div class="sub">'+esc(r.take)+'</div></td><td>'+esc(r.shift||'—')+'</td><td>'+step(r.filmOwner,r.filmPlan)+'</td><td>'+actual(r.filmDoer,r.filmDone)+'</td><td>'+step(r.analysisOwner,r.analysisPlan)+'</td><td>'+actual(r.analysisDoer,r.analysisDone)+'</td><td><span class="badge '+status(r)+'">'+labels[status(r)]+'</span>'+(busy?'<div class="sub">Em edição</div>':'')+'</td><td class="actions"><button class="secondary small" data-edit="'+esc(x.id)+'" '+(busy?'disabled title="Em edição por outra pessoa"':'')+'>Editar</button> <button class="danger small" data-delete="'+esc(x.id)+'" '+(busy?'disabled title="Em edição por outra pessoa"':'')+'>Excluir</button></td></tr>';
+  }).join('')||'<tr><td colspan="9" class="empty">Nenhuma tomada encontrada. Use “+ Adicionar tomada” para começar.</td></tr>';
 }
 async function rpc(name,args){
   const {data,error}=await db.rpc('controle_'+name,args);
@@ -96,6 +96,7 @@ async function lock(row){
   return true;
 }
 function valid(r){
+  if(!['','1T','2T','3T'].includes(r.shift))return false;
   if(fields.some(k=>typeof r[k]!=='string')||!['HB20','I20','Creta'].includes(r.model))return false;
   if(['area','line','take','filmOwner','filmPlan','analysisOwner','analysisPlan'].some(k=>!r[k]))return false;
   if((!!r.filmDone)!=(!!r.filmDoer)||(!!r.analysisDone)!=(!!r.analysisDoer))return false;
@@ -216,3 +217,4 @@ $('#export').onclick=()=>{
 };
 setInterval(refresh,10000);
 try{if(!recoveryMode)await enter()}catch(err){$('#loginPanel').hidden=false;$('#app').hidden=true;alert('A base ainda não está preparada ou a conexão falhou. Execute o arquivo SQL no projeto Supabase.')}
+
