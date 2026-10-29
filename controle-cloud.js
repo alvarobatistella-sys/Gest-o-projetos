@@ -38,6 +38,7 @@ function render(){
   });
   $('#cards').innerHTML=[['Tomadas',list.length],['Filmagens realizadas',list.filter(x=>x.dados.filmDone).length],['Análises realizadas',list.filter(x=>x.dados.analysisDone).length],['Atrasadas',list.filter(x=>status(x.dados)==='late').length]].map(([a,b])=>'<div class="card"><strong>'+b+'</strong><span>'+a+'</span></div>').join('');
   $('#dashboard').innerHTML=['HB20','I20','Creta'].map(m=>{const a=list.filter(x=>x.dados.model===m),pct=a.length?Math.round(a.filter(x=>status(x.dados)==='done').length/a.length*100):0;return '<tr><td><b>'+m+'</b></td><td>'+a.length+'</td><td>'+a.filter(x=>x.dados.filmDone).length+'</td><td>'+a.filter(x=>x.dados.analysisDone).length+'</td><td>'+a.filter(x=>status(x.dados)==='late').length+'</td><td>'+pct+'%</td></tr>'}).join('');
+  renderAnalytics();
   $('#records').innerHTML=list.slice().sort((a,b)=>a.dados.filmPlan.localeCompare(b.dados.filmPlan)).map(x=>{
     const r=x.dados, busy=locked(x);
     return '<tr><td><b>'+esc(r.area)+'</b><div class="sub">'+esc(r.line)+'</div></td><td><b>'+esc(r.model)+'</b><div class="sub">'+esc(r.take)+'</div></td><td>'+esc(r.shift||'—')+'</td><td>'+step(r.filmOwner,r.filmPlan)+'</td><td>'+actual(r.filmDoer,r.filmDone)+'</td><td>'+step(r.analysisOwner,r.analysisPlan)+'</td><td>'+actual(r.analysisDoer,r.analysisDone)+'</td><td><span class="badge '+status(r)+'">'+labels[status(r)]+'</span>'+(busy?'<div class="sub">Em edição</div>':'')+'</td><td class="actions"><button class="secondary small" data-edit="'+esc(x.id)+'" '+(busy?'disabled title="Em edição por outra pessoa"':'')+'>Editar</button> <button class="secondary small" data-duplicate="'+esc(x.id)+'">Duplicar</button> <button class="danger small" data-delete="'+esc(x.id)+'" '+(busy?'disabled title="Em edição por outra pessoa"':'')+'>Excluir</button></td></tr>';
@@ -227,3 +228,46 @@ $('#export').onclick=()=>{
 setInterval(refresh,10000);
 try{if(!recoveryMode)await enter()}catch(err){$('#loginPanel').hidden=false;$('#app').hidden=true;alert('A base ainda não está preparada ou a conexão falhou. Execute o arquivo SQL no projeto Supabase.')}
 
+
+function analyticsData(data,filters){
+  const inPeriod=v=>!!v&&(!filters.start||v>=filters.start)&&(!filters.end||v<=filters.end);
+  const selected=data.map(x=>x.dados).filter(r=>
+    (!filters.model||r.model===filters.model)&&(!filters.area||r.area===filters.area)&&(!filters.shift||r.shift===filters.shift)&&
+    (!filters.status||(filters.status==='realized'?!!(r.filmDone||r.analysisDone):filters.status==='active'?!!(r.filmDone||r.analysisDone)&&!(r.filmDone&&r.analysisDone):status(r)===filters.status)));
+  const relevant=selected.filter(r=>['filmPlan','analysisPlan','filmDone','analysisDone'].some(k=>inPeriod(r[k])));
+  const count=(items,k)=>items.filter(r=>inPeriod(r[k])).length;
+  const counts=items=>({filmPlan:count(items,'filmPlan'),filmDone:count(items,'filmDone'),analysisPlan:count(items,'analysisPlan'),analysisDone:count(items,'analysisDone')});
+  return {relevant,counts:counts(relevant),count,countsFor:counts,inPeriod};
+}
+function dashBars(items){
+  const max=Math.max(1,...items.map(x=>x[1]));
+  return items.map(([label,n,color=''])=>'<div class="dash-bar"><span>'+esc(label)+'</span><div class="dash-track"><div class="dash-fill '+color+'" style="width:'+(n/max*100)+'%"></div></div><b>'+n+'</b></div>').join('');
+}
+function renderAnalytics(){
+  const area=$('#dashArea'), chosen=area.value;
+  const areas=[...new Set(rows.map(x=>x.dados.area).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  area.innerHTML='<option value="">Todas as áreas</option>'+areas.map(a=>'<option value="'+esc(a)+'">'+esc(a)+'</option>').join('');
+  area.value=areas.includes(chosen)?chosen:'';
+  const f={start:$('#dashStart').value,end:$('#dashEnd').value,model:$('#dashModel').value,area:area.value,status:$('#dashStatus').value,shift:$('#dashShift').value};
+  if(f.start&&f.end&&f.start>f.end){
+    $('#dashMessage').textContent='A data final deve ser igual ou posterior à data inicial.';
+    ['dashCards','dashCompare','dashSituations','dashModels','dashTimeline'].forEach(id=>$('#'+id).innerHTML='');return;
+  }
+  const d=analyticsData(rows,f),c=d.counts;
+  $('#dashMessage').textContent=d.relevant.length?d.relevant.length+' tomada(s) com etapas no período selecionado.':'Nenhuma etapa encontrada para os filtros selecionados.';
+  $('#dashCards').innerHTML=[['Filmagens planejadas',c.filmPlan],['Filmagens realizadas',c.filmDone],['Análises planejadas',c.analysisPlan],['Análises realizadas',c.analysisDone]].map(([label,n])=>'<div class="card"><strong>'+n+'</strong><span>'+label+'</span></div>').join('');
+  const compare=c=>[['Filmagem · planejado',c.filmPlan],['Filmagem · realizado',c.filmDone,'actual'],['Análise · planejado',c.analysisPlan],['Análise · realizado',c.analysisDone,'actual']];
+  $('#dashCompare').innerHTML=dashBars(compare(c));
+  const r=d.relevant;
+  $('#dashSituations').innerHTML=dashBars([['Planejadas',r.filter(x=>!x.filmDone&&!x.analysisDone&&status(x)!=='late').length],['Em andamento',r.filter(x=>!!(x.filmDone||x.analysisDone)&&!(x.filmDone&&x.analysisDone)).length,'progress'],['Concluídas',r.filter(x=>x.filmDone&&x.analysisDone).length,'actual']])+ '<p class="hint">Atrasadas (podem estar em andamento): <b>'+r.filter(x=>status(x)==='late').length+'</b>. Situação atual, não histórica.</p>';
+  $('#dashModels').innerHTML=['HB20','I20','Creta'].map(m=>'<h4>'+esc(m)+'</h4>'+dashBars(compare(d.countsFor(r.filter(x=>x.model===m))))).join('');
+  const days=[...new Set(r.flatMap(x=>['filmPlan','filmDone','analysisPlan','analysisDone'].map(k=>x[k]).filter(d.inPeriod)))].sort();
+  $('#dashTimeline').innerHTML=days.map(day=>{const planned=r.reduce((n,x)=>n+(x.filmPlan===day)+(x.analysisPlan===day),0), actual=r.reduce((n,x)=>n+(x.filmDone===day)+(x.analysisDone===day),0);return {day,planned,actual}}).map((x,i,all)=>{
+    const max=Math.max(1,...all.flatMap(x=>[x.planned,x.actual]));
+    return '<div><b>'+date(x.day)+'</b>'+[['Planejado',x.planned,''],['Realizado',x.actual,'actual']].map(([label,n,color])=>'<div class="dash-bar"><span>'+label+'</span><div class="dash-track"><div class="dash-fill '+color+'" style="width:'+(n/max*100)+'%"></div></div><b>'+n+'</b></div>').join('')+'</div>';
+  }).join('')||'<p class="hint">Sem dados no período.</p>';
+}
+$('#openDashboard').onclick=()=>{$('#analytics').hidden=!$('#analytics').hidden;$('#openDashboard').setAttribute('aria-expanded',String(!$('#analytics').hidden));renderAnalytics();if(!$('#analytics').hidden)$('#analytics').scrollIntoView({behavior:'smooth',block:'start'})};
+$('#closeDashboard').onclick=()=>{$('#analytics').hidden=true;$('#openDashboard').setAttribute('aria-expanded','false');$('#openDashboard').focus()};
+['dashStart','dashEnd','dashModel','dashArea','dashStatus','dashShift'].forEach(id=>$('#'+id).addEventListener('change',renderAnalytics));
+$('#dashClear').onclick=()=>{['dashStart','dashEnd','dashModel','dashArea','dashStatus','dashShift'].forEach(id=>$('#'+id).value='');renderAnalytics()};
