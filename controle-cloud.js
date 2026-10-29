@@ -6,6 +6,8 @@ const db = createClient(url, publishableKey);
 const $ = s => document.querySelector(s);
 const fields = ['area','line','model','shift','take','filmOwner','filmPlan','filmDoer','filmDone','analysisOwner','analysisPlan','analysisDoer','analysisDone'];
 const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const takeName = v => String(v ?? '').replace(/(?:\s*[—–-]\s*cópia)+\s*$/iu,'').trim();
+const compareText = (a,b) => String(a ?? '').localeCompare(String(b ?? ''),'pt-BR',{numeric:true,sensitivity:'base'});
 const clean = v => String(v ?? '').trim().replace(/\s+/g,' ');
 const today = () => new Date().toLocaleDateString('en-CA');
 const date = v => v ? new Date(v+'T12:00:00').toLocaleDateString('pt-BR') : '—';
@@ -38,9 +40,9 @@ function render(){
   });
   $('#cards').innerHTML=[['Tomadas',list.length],['Filmagens realizadas',list.filter(x=>x.dados.filmDone).length],['Análises realizadas',list.filter(x=>x.dados.analysisDone).length],['Atrasadas',list.filter(x=>status(x.dados)==='late').length]].map(([a,b])=>'<div class="card"><strong>'+b+'</strong><span>'+a+'</span></div>').join('');
   $('#dashboard').innerHTML=['HB20','I20','Creta'].map(m=>{const a=list.filter(x=>x.dados.model===m),pct=a.length?Math.round(a.filter(x=>status(x.dados)==='done').length/a.length*100):0;return '<tr><td><b>'+m+'</b></td><td>'+a.length+'</td><td>'+a.filter(x=>x.dados.filmDone).length+'</td><td>'+a.filter(x=>x.dados.analysisDone).length+'</td><td>'+a.filter(x=>status(x.dados)==='late').length+'</td><td>'+pct+'%</td></tr>'}).join('');
-  $('#records').innerHTML=list.slice().sort((a,b)=>a.dados.filmPlan.localeCompare(b.dados.filmPlan)).map(x=>{
+  $('#records').innerHTML=list.slice().sort((a,b)=>compareText(a.dados.area,b.dados.area)||compareText(a.dados.line,b.dados.line)||compareText(takeName(a.dados.take),takeName(b.dados.take))||compareText(a.dados.model,b.dados.model)||compareText(a.dados.shift,b.dados.shift)||compareText(a.dados.filmPlan,b.dados.filmPlan)||compareText(a.id,b.id)).map(x=>{
     const r=x.dados, busy=locked(x);
-    return '<tr><td><b>'+esc(r.area)+'</b><div class="sub">'+esc(r.line)+'</div></td><td><b>'+esc(r.model)+'</b><div class="sub">'+esc(r.take)+'</div></td><td>'+esc(r.shift||'—')+'</td><td>'+step(r.filmOwner,r.filmPlan)+'</td><td>'+actual(r.filmDoer,r.filmDone)+'</td><td>'+step(r.analysisOwner,r.analysisPlan)+'</td><td>'+actual(r.analysisDoer,r.analysisDone)+'</td><td><span class="badge '+status(r)+'">'+labels[status(r)]+'</span>'+(busy?'<div class="sub">Em edição</div>':'')+'</td><td class="actions"><button class="secondary small" data-edit="'+esc(x.id)+'" '+(busy?'disabled title="Em edição por outra pessoa"':'')+'>Editar</button> <button class="secondary small" data-duplicate="'+esc(x.id)+'">Duplicar</button> <button class="danger small" data-delete="'+esc(x.id)+'" '+(busy?'disabled title="Em edição por outra pessoa"':'')+'>Excluir</button></td></tr>';
+    return '<tr><td><b>'+esc(r.area)+'</b><div class="sub">'+esc(r.line)+'</div></td><td><b>'+esc(r.model)+'</b><div class="sub">'+esc(takeName(r.take))+'</div></td><td>'+esc(r.shift||'—')+'</td><td>'+step(r.filmOwner,r.filmPlan)+'</td><td>'+actual(r.filmDoer,r.filmDone)+'</td><td>'+step(r.analysisOwner,r.analysisPlan)+'</td><td>'+actual(r.analysisDoer,r.analysisDone)+'</td><td><span class="badge '+status(r)+'">'+labels[status(r)]+'</span>'+(busy?'<div class="sub">Em edição</div>':'')+'</td><td class="actions"><button class="secondary small" data-edit="'+esc(x.id)+'" '+(busy?'disabled title="Em edição por outra pessoa"':'')+'>Editar</button> <button class="secondary small" data-duplicate="'+esc(x.id)+'">Duplicar</button> <button class="danger small" data-delete="'+esc(x.id)+'" '+(busy?'disabled title="Em edição por outra pessoa"':'')+'>Excluir</button></td></tr>';
   }).join('')||'<tr><td colspan="9" class="empty">Nenhuma tomada encontrada. Use “+ Adicionar tomada” para começar.</td></tr>';
 }
 async function rpc(name,args){
@@ -69,7 +71,7 @@ async function close(){$('#editor').close();await release();await refresh()}
 function fill(row){
   $('#form').reset();
   $('#dialogTitle').textContent=row?'Editar tomada':'Adicionar tomada';
-  if(row)fields.forEach(k=>$('#form').elements[k].value=row.dados[k]||'');
+  if(row)fields.forEach(k=>$('#form').elements[k].value=(k==='take'?takeName(row.dados[k]):row.dados[k])||'');
   $('#editor').showModal();
 }
 async function lock(row){
@@ -205,7 +207,7 @@ $('#records').onclick=async e=>{
   try{
     if(b.dataset.duplicate){
       editing=null;token=null;version=null;
-      const dados={...row.dados,take:row.dados.take+' — cópia',filmDoer:'',filmDone:'',analysisDoer:'',analysisDone:''};
+      const dados={...row.dados,take:takeName(row.dados.take),filmDoer:'',filmDone:'',analysisDoer:'',analysisDone:''};
       fill({dados});
       $('#dialogTitle').textContent='Duplicar tomada';
       $('#form').elements.take.focus();
