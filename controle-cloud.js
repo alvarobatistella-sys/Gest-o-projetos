@@ -86,6 +86,7 @@ function fill(row){
   $('#form').reset();
   $('#dialogTitle').textContent=row?'Editar tomada':'Adicionar tomada';
   if(row)fields.forEach(k=>$('#form').elements[k].value=(k==='take'?takeName(row.dados[k]):row.dados[k])||'');
+  previewReplacement();
   $('#editor').showModal();
 }
 async function lock(row){
@@ -249,3 +250,23 @@ try{if(!recoveryMode)await enter()}catch(err){$('#loginPanel').hidden=false;$('#
 
 
 $('#clearPlanningFilters').onclick=()=>{['search','modelFilter','statusFilter','areaFilter','shiftFilter','personFilter','takeFilter'].forEach(id=>$('#'+id).value='');render()};
+
+function replacementChanges(form,from,to,target){
+  if(!from)return [];
+  const names=target==='both'?['line','take']:[target];
+  return names.map(name=>({name,before:form.elements[name].value,after:form.elements[name].value.split(from).join(to)})).filter(x=>x.before!==x.after);
+}
+function previewReplacement(){
+  const from=$('#replaceFrom').value,to=$('#replaceTo').value;
+  const changes=replacementChanges($('#form'),from,to,$('#replaceTarget').value);
+  $('#applyReplace').disabled=!changes.length;
+  $('#replacePreview').textContent=!from?'Informe o trecho a substituir. Ex.: 4L por 7L.':changes.length?changes.map(x=>(x.name==='line'?'Linha: ':'Tomada: ')+x.before+' → '+(x.after||'(vazio)')).join(' | '):'Nenhuma ocorrência encontrada nos campos selecionados.';
+}
+['replaceFrom','replaceTo','replaceTarget'].forEach(id=>$('#'+id).addEventListener('input',previewReplacement));
+['line','take'].forEach(name=>$('#form').elements[name].addEventListener('input',previewReplacement));
+$('#applyReplace').onclick=()=>{
+  const changes=replacementChanges($('#form'),$('#replaceFrom').value,$('#replaceTo').value,$('#replaceTarget').value);
+  changes.forEach(x=>$('#form').elements[x.name].value=x.after);
+  previewReplacement();
+  $('#replacePreview').textContent=changes.length?'Substituição aplicada no formulário. Clique em Salvar tomada para gravar.':'Nenhuma alteração aplicada.';
+};
