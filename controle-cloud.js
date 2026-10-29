@@ -271,3 +271,48 @@ $('#openDashboard').onclick=()=>{$('#analytics').hidden=!$('#analytics').hidden;
 $('#closeDashboard').onclick=()=>{$('#analytics').hidden=true;$('#openDashboard').setAttribute('aria-expanded','false');$('#openDashboard').focus()};
 ['dashStart','dashEnd','dashModel','dashArea','dashStatus','dashShift'].forEach(id=>$('#'+id).addEventListener('change',renderAnalytics));
 $('#dashClear').onclick=()=>{['dashStart','dashEnd','dashModel','dashArea','dashStatus','dashShift'].forEach(id=>$('#'+id).value='');renderAnalytics()};
+
+$('#pdfDashboard').onclick=()=>{
+  renderAnalytics();
+  if($('#dashStart').value&&$('#dashEnd').value&&$('#dashStart').value>$('#dashEnd').value){alert('Corrija o período antes de imprimir.');return}
+  const popup=window.open('','_blank');
+  if(!popup){alert('Permita abrir a janela de impressão neste navegador e tente novamente.');return}
+  const filterText=['Período: '+($('#dashStart').value?date($('#dashStart').value):'Início')+' a '+($('#dashEnd').value?date($('#dashEnd').value):'Fim'),...['dashModel','dashArea','dashStatus','dashShift'].map(id=>$('#'+id).selectedOptions[0].textContent)].join(' · ');
+  const sections=[['Resumo',$('#dashCards').innerHTML],['Filmagens e análises',$('#dashCompare').innerHTML],['Situação das tomadas',$('#dashSituations').innerHTML],['Planejado × realizado por modelo',$('#dashModels').innerHTML],['Evolução por data',$('#dashTimeline').innerHTML]];
+  const css=document.querySelector('style').textContent;
+  popup.document.open();
+  popup.document.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dashboard — Planejado e realizado</title><style>'+css+`
+body{background:#e6edf4;padding:18px}.print-controls{background:white;border-radius:10px;padding:18px;max-width:1100px;margin:0 auto 20px}.print-controls label{display:inline-block;margin:6px 16px 6px 0}.print-controls input[type=number]{width:90px}.paper{background:white;box-shadow:0 3px 20px #19324c22;margin:auto;box-sizing:border-box;overflow:visible;padding:10mm}.report-section{margin-bottom:18px}.report-section h2{font-size:17px}.report-section:first-of-type>div{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.paper h1{font-size:23px;color:#0b3764}.paper h4{margin:14px 0 5px}.paper .card{padding:12px}.paper .card strong{font-size:25px}.paper .dash-bar{break-inside:avoid}.paper .hint{font-size:12px}.break-before{border-top:2px dashed #bd5d28;padding-top:12px}.break-before:before{content:'Quebra de página';display:block;color:#bd5d28;font-size:12px;margin-bottom:8px}#scaleInfo{display:block;font-size:13px;color:#43617a;margin-top:10px}@media print{html,body{margin:0!important;padding:0!important;background:white}.print-controls{display:none!important}.paper{box-shadow:none;margin:0;padding:0!important;width:100%!important}.break-before{border:0;padding-top:0;break-before:page;page-break-before:always}.break-before:before{display:none}.report-section h2{break-after:avoid}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style><style id="pageStyle"></style></head><body>
+<div class="print-controls"><h1>Configurar impressão / PDF</h1><p>Escolha o formato e confira a prévia abaixo. Clique em Imprimir / Salvar PDF e selecione “Salvar como PDF” no destino.</p>
+<label>Orientação <select id="orientation"><option value="landscape">Paisagem</option><option value="portrait">Retrato</option></select></label>
+<label>Zoom <input id="zoom" type="number" min="10" max="200" step="5" value="100"> %</label>
+<label><input id="onePage" type="checkbox"> Ajustar em 1 folha A4</label>
+<fieldset><legend>Quebra de página antes de</legend>`+sections.slice(1).map((x,i)=>'<label><input class="pageBreak" type="checkbox" value="'+(i+1)+'"> '+esc(x[0])+'</label>').join('')+`</fieldset>
+<button id="printNow">Imprimir / Salvar PDF</button> <button id="closePreview" class="secondary">Fechar</button><span id="scaleInfo" role="status"></span><p class="hint">Na janela do navegador, mantenha papel A4, escala 100%, margens padrão e desative cabeçalhos e rodapés. O modo 1 folha reduz o conteúdo e desativa as quebras manuais.</p></div>
+<main id="paper" class="paper"><h1>Dashboard · Planejado × realizado</h1><p>`+esc(filterText)+'</p><p>'+esc($('#dashMessage').textContent)+'</p>'+sections.map(([title,content],i)=>'<section class="report-section" id="section'+i+'"><h2>'+esc(title)+'</h2><div>'+content+'</div></section>').join('')+`</main></body></html>`);
+  popup.document.close();
+  const doc=popup.document, paper=doc.getElementById('paper');
+  function updatePrint(){
+    const landscape=doc.getElementById('orientation').value==='landscape';
+    const single=doc.getElementById('onePage').checked;
+    const zoomInput=doc.getElementById('zoom');
+    let zoom=Math.min(200,Math.max(10,Number(zoomInput.value)||100))/100;
+    const width=landscape?277:190, height=landscape?190:277;
+    paper.style.width=width+'mm';paper.style.padding='0';paper.style.zoom='1';
+    doc.querySelectorAll('.pageBreak').forEach(box=>{box.disabled=single;doc.getElementById('section'+box.value).classList.toggle('break-before',!single&&box.checked)});
+    zoomInput.disabled=single;
+    if(single){
+      const pxPerMm=96/25.4;
+      zoom=Math.min(1,height*pxPerMm/Math.max(1,paper.scrollHeight),width*pxPerMm/Math.max(1,paper.scrollWidth))*0.97;
+    }
+    paper.style.zoom=String(zoom);
+    doc.getElementById('pageStyle').textContent='@page{size:A4 '+(landscape?'landscape':'portrait')+';margin:10mm}';
+    doc.getElementById('scaleInfo').textContent='Escala aplicada: '+Math.round(zoom*100)+'%'+(single?' · Ajuste automático em uma folha.':' · As quebras marcadas iniciam uma nova página.');
+  }
+  ['orientation','zoom','onePage'].forEach(id=>doc.getElementById(id).addEventListener('input',updatePrint));
+  doc.querySelectorAll('.pageBreak').forEach(box=>box.addEventListener('change',updatePrint));
+  doc.getElementById('printNow').onclick=()=>{updatePrint();popup.focus();popup.print()};
+  doc.getElementById('closePreview').onclick=()=>popup.close();
+  updatePrint();
+};
