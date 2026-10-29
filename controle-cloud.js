@@ -136,9 +136,16 @@ async function enter(){
 }
 async function loadUsers(){
   const users=await rpc('listar_usuarios',{});
-  // Atualiza a lista do controle de horas após o administrador consultar os usuários.
-  const sync=await db.rpc('controle_horas_sincronizar',{p_usuarios:users.map(u=>({nome:u.nome,email:u.email}))});
-  if(sync.error)console.info('Controle de horas: execute configurar-horas.sql para habilitar a lista.');
+  try{
+    const {data:{session}}=await db.auth.getSession();
+    const response=await fetch('https://pqhfltldtnmxvowhhkvu.supabase.co/functions/v1/sincronizar-nomes-horas',{
+      method:'POST',headers:{'Content-Type':'application/json','apikey':'sb_publishable_mkMZ7kF5RxWmaAma-wzWFA_WkiqCDQu'},
+      body:JSON.stringify({source_token:session?.access_token})
+    });
+    if(!response.ok)throw Error('Sincronização indisponível');
+    $('#hoursSyncStatus').textContent='Lista de nomes do controle de horas sincronizada.';
+  }catch(err){$('#hoursSyncStatus').textContent='Lista de horas ainda não sincronizada. Publique a função sincronizar-nomes-horas no novo Supabase e atualize esta página.';}
+
   $('#users').innerHTML=users.map(u=>'<tr><td>'+esc(u.nome)+'</td><td>'+esc(u.email)+'</td><td>'+(u.confirmado?'E-mail confirmado':'Aguardando confirmação')+'</td><td>'+(u.email.toLowerCase()===adminEmail?'Administrador':'<button class="secondary small" data-resend="'+esc(u.email)+'" data-confirmed="'+u.confirmado+'">Reenviar acesso</button> <button class="danger small" data-remove="'+esc(u.email)+'">Remover acesso</button>')+'</td></tr>').join('');
 }
 $('#userForm').onsubmit=async e=>{
