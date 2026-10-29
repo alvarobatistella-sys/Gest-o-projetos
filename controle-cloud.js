@@ -31,13 +31,27 @@ function status(r){
 function step(owner,planned){return '<b>'+esc(owner)+'</b><div class="sub">'+date(planned)+'</div>'}
 function actual(doer,done){return '<b>'+esc(doer||'Pendente')+'</b><div class="sub">'+date(done)+'</div>'}
 function locked(row){return row.bloqueado_por && new Date(row.bloqueado_ate)>new Date()}
+function refreshPlanningOptions(id,values,label){
+  const select=$('#'+id),chosen=select.value;
+  const options=[...new Set(values.filter(Boolean))].sort(compareText);
+  select.innerHTML='<option value="">'+label+'</option>'+options.map(value=>'<option value="'+esc(value)+'">'+esc(value)+'</option>').join('');
+  select.value=options.includes(chosen)?chosen:'';
+}
+function matchesPlanning(r,f){
+  return (!f.area||r.area===f.area)&&(!f.shift||r.shift===f.shift)&&(!f.take||takeName(r.take)===f.take)&&(!f.person||[r.filmOwner,r.filmDoer,r.analysisOwner,r.analysisDoer].includes(f.person));
+}
 function render(){
+  refreshPlanningOptions('areaFilter',rows.map(x=>x.dados.area),'Todas as áreas');
+  refreshPlanningOptions('personFilter',rows.flatMap(x=>[x.dados.filmOwner,x.dados.filmDoer,x.dados.analysisOwner,x.dados.analysisDoer]),'Todas as pessoas');
+  refreshPlanningOptions('takeFilter',rows.map(x=>takeName(x.dados.take)),'Todos os postos / tomadas');
+  const extra={area:$('#areaFilter').value,shift:$('#shiftFilter').value,person:$('#personFilter').value,take:$('#takeFilter').value};
   const q=clean($('#search').value).toLocaleLowerCase(), model=$('#modelFilter').value, filter=$('#statusFilter').value;
   const list=rows.filter(x=>{
     const r=x.dados;
-    return (!model||r.model===model)&&(!filter||status(r)===filter)&&
+    return matchesPlanning(r,extra)&&(!model||r.model===model)&&(!filter||status(r)===filter)&&
       [r.area,r.line,r.model,r.shift,r.take,r.filmOwner,r.filmDoer,r.analysisOwner,r.analysisDoer].join(' ').toLocaleLowerCase().includes(q);
   });
+  $('#planningCount').textContent=list.length+' de '+rows.length+' tomada(s) encontrada(s).';
   $('#cards').innerHTML=[['Tomadas',list.length],['Filmagens realizadas',list.filter(x=>x.dados.filmDone).length],['Análises realizadas',list.filter(x=>x.dados.analysisDone).length],['Atrasadas',list.filter(x=>status(x.dados)==='late').length]].map(([a,b])=>'<div class="card"><strong>'+b+'</strong><span>'+a+'</span></div>').join('');
   $('#dashboard').innerHTML=['HB20','I20','Creta'].map(m=>{const a=list.filter(x=>x.dados.model===m),pct=a.length?Math.round(a.filter(x=>status(x.dados)==='done').length/a.length*100):0;return '<tr><td><b>'+m+'</b></td><td>'+a.length+'</td><td>'+a.filter(x=>x.dados.filmDone).length+'</td><td>'+a.filter(x=>x.dados.analysisDone).length+'</td><td>'+a.filter(x=>status(x.dados)==='late').length+'</td><td>'+pct+'%</td></tr>'}).join('');
   $('#records').innerHTML=list.slice().sort((a,b)=>compareText(a.dados.area,b.dados.area)||compareText(a.dados.line,b.dados.line)||compareText(takeName(a.dados.take),takeName(b.dados.take))||compareText(a.dados.model,b.dados.model)||compareText(a.dados.shift,b.dados.shift)||compareText(a.dados.filmPlan,b.dados.filmPlan)||compareText(a.id,b.id)).map(x=>{
@@ -223,7 +237,7 @@ $('#records').onclick=async e=>{
     await refresh();
   }catch(err){alert('Operação não concluída: '+err.message);await refresh()}
 };
-['search','modelFilter','statusFilter'].forEach(k=>$('#'+k).addEventListener(k==='search'?'input':'change',render));
+['search','modelFilter','statusFilter','areaFilter','shiftFilter','personFilter','takeFilter'].forEach(k=>$('#'+k).addEventListener(k==='search'?'input':'change',render));
 $('#export').onclick=()=>{
   const data={version:2,rows:rows.map(x=>({...x.dados,id:x.id}))};
   const link=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
@@ -233,3 +247,5 @@ setInterval(refresh,10000);
 try{if(!recoveryMode)await enter()}catch(err){$('#loginPanel').hidden=false;$('#app').hidden=true;alert('A base ainda não está preparada ou a conexão falhou. Execute o arquivo SQL no projeto Supabase.')}
 
 
+
+$('#clearPlanningFilters').onclick=()=>{['search','modelFilter','statusFilter','areaFilter','shiftFilter','personFilter','takeFilter'].forEach(id=>$('#'+id).value='');render()};
