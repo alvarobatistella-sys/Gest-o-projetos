@@ -40,7 +40,7 @@ function render(){
   $('#dashboard').innerHTML=['HB20','I20','Creta'].map(m=>{const a=list.filter(x=>x.dados.model===m),pct=a.length?Math.round(a.filter(x=>status(x.dados)==='done').length/a.length*100):0;return '<tr><td><b>'+m+'</b></td><td>'+a.length+'</td><td>'+a.filter(x=>x.dados.filmDone).length+'</td><td>'+a.filter(x=>x.dados.analysisDone).length+'</td><td>'+a.filter(x=>status(x.dados)==='late').length+'</td><td>'+pct+'%</td></tr>'}).join('');
   $('#records').innerHTML=list.slice().sort((a,b)=>a.dados.filmPlan.localeCompare(b.dados.filmPlan)).map(x=>{
     const r=x.dados, busy=locked(x);
-    return '<tr><td><b>'+esc(r.area)+'</b><div class="sub">'+esc(r.line)+'</div></td><td><b>'+esc(r.model)+'</b><div class="sub">'+esc(r.take)+'</div></td><td>'+esc(r.shift||'—')+'</td><td>'+step(r.filmOwner,r.filmPlan)+'</td><td>'+actual(r.filmDoer,r.filmDone)+'</td><td>'+step(r.analysisOwner,r.analysisPlan)+'</td><td>'+actual(r.analysisDoer,r.analysisDone)+'</td><td><span class="badge '+status(r)+'">'+labels[status(r)]+'</span>'+(busy?'<div class="sub">Em edição</div>':'')+'</td><td class="actions"><button class="secondary small" data-edit="'+esc(x.id)+'" '+(busy?'disabled title="Em edição por outra pessoa"':'')+'>Editar</button> <button class="danger small" data-delete="'+esc(x.id)+'" '+(busy?'disabled title="Em edição por outra pessoa"':'')+'>Excluir</button></td></tr>';
+    return '<tr><td><b>'+esc(r.area)+'</b><div class="sub">'+esc(r.line)+'</div></td><td><b>'+esc(r.model)+'</b><div class="sub">'+esc(r.take)+'</div></td><td>'+esc(r.shift||'—')+'</td><td>'+step(r.filmOwner,r.filmPlan)+'</td><td>'+actual(r.filmDoer,r.filmDone)+'</td><td>'+step(r.analysisOwner,r.analysisPlan)+'</td><td>'+actual(r.analysisDoer,r.analysisDone)+'</td><td><span class="badge '+status(r)+'">'+labels[status(r)]+'</span>'+(busy?'<div class="sub">Em edição</div>':'')+'</td><td class="actions"><button class="secondary small" data-edit="'+esc(x.id)+'" '+(busy?'disabled title="Em edição por outra pessoa"':'')+'>Editar</button> <button class="secondary small" data-duplicate="'+esc(x.id)+'">Duplicar</button> <button class="danger small" data-delete="'+esc(x.id)+'" '+(busy?'disabled title="Em edição por outra pessoa"':'')+'>Excluir</button></td></tr>';
   }).join('')||'<tr><td colspan="9" class="empty">Nenhuma tomada encontrada. Use “+ Adicionar tomada” para começar.</td></tr>';
 }
 async function rpc(name,args){
@@ -198,8 +198,17 @@ $('#form').onsubmit=async e=>{
 };
 $('#records').onclick=async e=>{
   const b=e.target.closest('button');if(!b||b.disabled)return;
-  const row=rows.find(x=>x.id===(b.dataset.edit||b.dataset.delete));if(!row)return;
+  const row=rows.find(x=>x.id===(b.dataset.edit||b.dataset.duplicate||b.dataset.delete));if(!row)return;
   try{
+    if(b.dataset.duplicate){
+      editing=null;token=null;version=null;
+      const dados={...row.dados,take:row.dados.take+' — cópia',filmDoer:'',filmDone:'',analysisDoer:'',analysisDone:''};
+      fill({dados});
+      $('#dialogTitle').textContent='Duplicar tomada';
+      $('#form').elements.take.focus();
+      $('#form').elements.take.select();
+      return;
+    }
     if(b.dataset.edit){await lock(row);return}
     if(!confirm('Excluir a tomada “'+row.dados.take+'” e suas etapas?'))return;
     const t=crypto.randomUUID();
