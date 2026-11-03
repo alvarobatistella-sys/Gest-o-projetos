@@ -40,6 +40,19 @@ function refreshPlanningOptions(id,values,label){
 function matchesPlanning(r,f){
   return (!f.area||r.area===f.area)&&(!f.shift||r.shift===f.shift)&&(!f.take||takeName(r.take)===f.take)&&(!f.person||[r.filmOwner,r.filmDoer,r.analysisOwner,r.analysisDoer].includes(f.person));
 }
+function matchesStageStatus(r,stage,filter){
+  if(!stage&&!filter) return true;
+  const stages=stage?[stage]:['film','analysis'];
+  if(filter==='active') return Boolean(r.filmDone)!==Boolean(r.analysisDone);
+  if(filter==='done') return Boolean(r.filmDone&&r.analysisDone);
+  return stages.some(key=>{
+    const plan=r[key+'Plan'],done=r[key+'Done'];
+    if(filter==='late') return Boolean(plan&&!done&&plan<today());
+    if(filter==='planned') return Boolean(plan&&!done);
+    if(filter==='realized') return Boolean(done);
+    return Boolean(plan||done);
+  });
+}
 function render(){
   refreshPlanningOptions('areaFilter',rows.map(x=>x.dados.area),'Todas as áreas');
   refreshPlanningOptions('personFilter',rows.flatMap(x=>[x.dados.filmOwner,x.dados.filmDoer,x.dados.analysisOwner,x.dados.analysisDoer]),'Todas as pessoas');
@@ -48,7 +61,7 @@ function render(){
   const q=clean($('#search').value).toLocaleLowerCase(), model=$('#modelFilter').value, filter=$('#statusFilter').value;
   const list=rows.filter(x=>{
     const r=x.dados;
-    return matchesPlanning(r,extra)&&(!model||r.model===model)&&(!filter||status(r)===filter)&&
+    return matchesPlanning(r,extra)&&(!model||r.model===model)&&matchesStageStatus(r,$('#stageFilter').value,filter)&&
       [r.area,r.line,r.model,r.shift,r.take,r.filmOwner,r.filmDoer,r.analysisOwner,r.analysisDoer].join(' ').toLocaleLowerCase().includes(q);
   });
   $('#planningCount').textContent=list.length+' de '+rows.length+' tomada(s) encontrada(s).';
@@ -247,7 +260,7 @@ $('#records').onclick=async e=>{
     await refresh();
   }catch(err){alert('Operação não concluída: '+err.message);await refresh()}
 };
-['search','modelFilter','statusFilter','areaFilter','shiftFilter','personFilter','takeFilter'].forEach(k=>$('#'+k).addEventListener(k==='search'?'input':'change',render));
+['search','modelFilter','statusFilter','stageFilter','areaFilter','shiftFilter','personFilter','takeFilter'].forEach(k=>$('#'+k).addEventListener(k==='search'?'input':'change',render));
 $('#export').onclick=()=>{
   const data={version:2,rows:rows.map(x=>({...x.dados,id:x.id}))};
   const link=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
@@ -258,7 +271,7 @@ try{if(!recoveryMode)await enter()}catch(err){$('#loginPanel').hidden=false;$('#
 
 
 
-$('#clearPlanningFilters').onclick=()=>{['search','modelFilter','statusFilter','areaFilter','shiftFilter','personFilter','takeFilter'].forEach(id=>$('#'+id).value='');render()};
+$('#clearPlanningFilters').onclick=()=>{['search','modelFilter','statusFilter','stageFilter','areaFilter','shiftFilter','personFilter','takeFilter'].forEach(id=>$('#'+id).value='');render()};
 
 function replacementChanges(form,from,to,target){
   if(!from)return [];
