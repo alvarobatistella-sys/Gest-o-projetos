@@ -17,6 +17,12 @@ function status(r){
   if(r.filmDone || r.analysisDone) return 'active';
   return 'planned';
 }
+function stationTotal(value){
+ const total=Number(value);return Number.isInteger(total)&&total>0&&total<=1000000?total:null;
+}
+function stationPercent(count,total){
+ return total?(count/total*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%':'—';
+}
 function analyticsData(data,filters){
   const inPeriod=v=>!!v&&(!filters.start||v>=filters.start)&&(!filters.end||v<=filters.end);
   const selected=data.map(x=>x.dados).filter(r=>
@@ -43,7 +49,9 @@ function renderAnalytics(){
   }
   const d=analyticsData(rows,f),c=d.counts;
   $('#dashMessage').textContent=d.relevant.length?d.relevant.length+' tomada(s) com etapas no período selecionado.':'Nenhuma etapa encontrada para os filtros selecionados.';
-  $('#dashCards').innerHTML=[['Filmagens planejadas',c.filmPlan],['Filmagens realizadas',c.filmDone],['Análises planejadas',c.analysisPlan],['Análises realizadas',c.analysisDone]].map(([label,n])=>'<div class="card"><strong>'+n+'</strong><span>'+label+'</span></div>').join('');
+  const total=stationTotal($('#dashStationTotal').value);
+  $('#stationTotalMessage').textContent=total?'Meta usada nos quatro indicadores: '+total+' estações.':'Informe um total inteiro maior que zero para calcular os percentuais.';
+  $('#dashCards').innerHTML=[['Filmagens planejadas',c.filmPlan],['Filmagens realizadas',c.filmDone],['Análises planejadas',c.analysisPlan],['Análises realizadas',c.analysisDone]].map(([label,n])=>'<div class="card"><strong>'+n+'</strong><span>'+label+'</span><div style="font-size:1.3rem;font-weight:bold;color:#096b51;margin-top:10px">'+stationPercent(n,total)+'</div><span>'+(total?n+' de '+total+' estações':'Total não informado')+'</span></div>').join('');
   const compare=c=>[['Filmagem · planejado',c.filmPlan],['Filmagem · realizado',c.filmDone,'actual'],['Análise · planejado',c.analysisPlan],['Análise · realizado',c.analysisDone,'actual']];
   $('#dashCompare').innerHTML=dashBars(compare(c));
   const r=d.relevant;
@@ -63,7 +71,7 @@ $('#pdfDashboard').onclick=()=>{
   if($('#dashStart').value&&$('#dashEnd').value&&$('#dashStart').value>$('#dashEnd').value){alert('Corrija o período antes de imprimir.');return}
   const popup=window.open('','_blank');
   if(!popup){alert('Permita abrir a janela de impressão neste navegador e tente novamente.');return}
-  const filterText=['Período: '+($('#dashStart').value?date($('#dashStart').value):'Início')+' a '+($('#dashEnd').value?date($('#dashEnd').value):'Fim'),...['dashModel','dashArea','dashStatus','dashShift'].map(id=>$('#'+id).selectedOptions[0].textContent)].join(' · ');
+  const filterText=['Total de estações: '+(stationTotal($('#dashStationTotal').value)||'Não informado'),'Período: '+($('#dashStart').value?date($('#dashStart').value):'Início')+' a '+($('#dashEnd').value?date($('#dashEnd').value):'Fim'),...['dashModel','dashArea','dashStatus','dashShift'].map(id=>$('#'+id).selectedOptions[0].textContent)].join(' · ');
   const sections=[['Resumo',$('#dashCards').innerHTML],['Filmagens e análises',$('#dashCompare').innerHTML],['Situação das tomadas',$('#dashSituations').innerHTML],['Planejado × realizado por modelo',$('#dashModels').innerHTML],['Evolução por data',$('#dashTimeline').innerHTML]];
   const css=document.querySelector('style').textContent;
   popup.document.open();
@@ -116,6 +124,11 @@ async function refreshDashboard(){
     $('#dashboardConnection').textContent='Dados atualizados · '+user.email;
   }catch(err){$('#dashboardConnection').textContent='Não foi possível atualizar os dados. Verifique a conexão e recarregue a página.'}
 }
+try{$('#dashStationTotal').value=localStorage.getItem('hyundai-dashboard-total-estacoes')||''}catch{}
+$('#dashStationTotal').addEventListener('input',()=>{
+ try{if(stationTotal($('#dashStationTotal').value))localStorage.setItem('hyundai-dashboard-total-estacoes',$('#dashStationTotal').value);else localStorage.removeItem('hyundai-dashboard-total-estacoes')}catch{}
+ renderAnalytics();
+});
 await refreshDashboard();
 setInterval(refreshDashboard,10000);
 db.auth.onAuthStateChange(event=>{if(event==='SIGNED_OUT'){rows=[];$('#dashboardContent').hidden=true;location.replace('index.html')}});

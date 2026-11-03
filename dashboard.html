@@ -21,8 +21,8 @@ header .header-title{flex:1;min-width:0}header .brand-logo{width:125px;height:76
 <label class="field">Turno<select id="dashShift"><option value="">Todos os turnos</option><option>1T</option><option>2T</option><option>3T</option></select></label></div>
 <button id="dashClear" class="secondary small">Limpar filtros</button>
 <p class="hint" style="margin-top:14px">Os filtros deste dashboard são independentes da listagem. O período conta cada etapa pela sua própria data: planejada ou realizada. Em andamento: uma etapa realizada e outra pendente. Concluídas: as duas etapas realizadas. Com etapa realizada: ao menos uma etapa realizada.</p>
-<p id="dashMessage" role="status"></p><div id="dashCards" class="cards"></div>
+<fieldset><legend>Meta de estações</legend><label class="field">Total de estações do escopo selecionado<input id="dashStationTotal" type="number" min="1" max="1000000" step="1" placeholder="Ex.: 170" inputmode="numeric"></label><p class="hint">Informe a meta correspondente aos filtros acima. Percentual = quantidade no período ÷ total de estações × 100. Cada tomada conta como uma unidade; se houver várias tomadas da mesma estação, elas serão contadas separadamente. O total é salvo somente neste navegador e deve ser ajustado ao mudar o escopo.</p><p id="stationTotalMessage" class="hint" role="status"></p></fieldset><p id="dashMessage" role="status"></p><div id="dashCards" class="cards"></div>
 <div class="grid"><div><h3>Filmagens e análises</h3><div id="dashCompare"></div></div><div><h3>Situação das tomadas</h3><div id="dashSituations"></div></div></div>
 <h3>Planejado × realizado por modelo</h3><div id="dashModels"></div>
 <h3>Evolução por data</h3><div id="dashTimeline"></div>
-</section></div></main><script type="module" src="dashboard.js?v=1"></script></body></html>
+</section></div></main><script type="module" src="dashboard.js?v=estacoes2"></script></body></html>
