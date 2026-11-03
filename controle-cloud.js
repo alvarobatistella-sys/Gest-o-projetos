@@ -262,17 +262,18 @@ $('#clearPlanningFilters').onclick=()=>{['search','modelFilter','statusFilter','
 
 function replacementChanges(form,from,to,target){
   if(!from)return [];
-  const names=target==='both'?['line','take']:[target];
+  const names=target==='all'?['area','line','take']:target==='both'?['line','take']:[target];
   return names.map(name=>({name,before:form.elements[name].value,after:form.elements[name].value.split(from).join(to)})).filter(x=>x.before!==x.after);
 }
 function previewReplacement(){
   const from=$('#replaceFrom').value,to=$('#replaceTo').value;
   const changes=replacementChanges($('#form'),from,to,$('#replaceTarget').value);
   $('#applyReplace').disabled=!changes.length;
-  $('#replacePreview').textContent=!from?'Informe o trecho a substituir. Ex.: 4L por 7L.':changes.length?changes.map(x=>(x.name==='line'?'Linha: ':'Tomada: ')+x.before+' → '+(x.after||'(vazio)')).join(' | '):'Nenhuma ocorrência encontrada nos campos selecionados.';
+  $('#replacePreview').textContent=!from?'Informe o trecho a substituir. Ex.: 4L por 7L.':changes.length?changes.map(x=>({area:'Área de trabalho: ',line:'Linha: ',take:'Tomada: '}[x.name])+x.before+' → '+(x.after||'(vazio)')).join(' | '):'Nenhuma ocorrência encontrada nos campos selecionados.';
 }
 ['replaceFrom','replaceTo','replaceTarget'].forEach(id=>$('#'+id).addEventListener('input',previewReplacement));
 $('#form').elements.line.addEventListener('input',previewReplacement);
+$('#form').elements.area.addEventListener('input',previewReplacement);
 $('#form').elements.take.addEventListener('input',()=>{
   $('#replaceFrom').value=$('#form').elements.take.value;
   $('#replaceTo').value=$('#form').elements.take.value;
