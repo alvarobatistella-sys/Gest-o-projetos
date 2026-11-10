@@ -58,6 +58,7 @@ function matchesStageStatus(r,stage,filter){
     return Boolean(plan||done);
   });
 }
+let selectedIds=new Set(),visibleIds=[],bulkRunning=false;
 function render(){
   refreshPlanningOptions('areaFilter',rows.map(x=>x.dados.area),'Todas as áreas');
   refreshPlanningOptions('personFilter',rows.flatMap(x=>[x.dados.filmOwner,x.dados.filmDoer,x.dados.analysisOwner,x.dados.analysisDoer]),'Todas as pessoas');
@@ -69,13 +70,16 @@ function render(){
     return matchesPlanning(r,extra)&&(!model||r.model===model)&&matchesStageStatus(r,$('#stageFilter').value,filter)&&
       [r.area,r.line,r.model,r.shift,r.take,r.filmOwner,r.filmDoer,r.analysisOwner,r.analysisDoer].join(' ').toLocaleLowerCase().includes(q);
   });
+  visibleIds=list.map(x=>x.id);
+  selectedIds=new Set([...selectedIds].filter(id=>visibleIds.includes(id)));
+  updateBulkSelection();
   $('#planningCount').textContent=list.length+' de '+rows.length+' tomada(s) encontrada(s).';
   $('#cards').innerHTML=[['Tomadas',list.length],['Filmagens realizadas',list.filter(x=>x.dados.filmDone).length],['Análises realizadas',list.filter(x=>x.dados.analysisDone).length],['Atrasadas',list.filter(x=>status(x.dados)==='late').length]].map(([a,b])=>'<div class="card"><strong>'+b+'</strong><span>'+a+'</span></div>').join('');
   $('#dashboard').innerHTML=['HB20','I20','Creta'].map(m=>{const a=list.filter(x=>x.dados.model===m),pct=a.length?Math.round(a.filter(x=>status(x.dados)==='done').length/a.length*100):0;return '<tr><td><b>'+m+'</b></td><td>'+a.length+'</td><td>'+a.filter(x=>x.dados.filmDone).length+'</td><td>'+a.filter(x=>x.dados.analysisDone).length+'</td><td>'+a.filter(x=>status(x.dados)==='late').length+'</td><td>'+pct+'%</td></tr>'}).join('');
   $('#records').innerHTML=list.slice().sort((a,b)=>compareText(a.dados.area,b.dados.area)||compareText(a.dados.line,b.dados.line)||compareText(takeName(a.dados.take),takeName(b.dados.take))||compareText(a.dados.model,b.dados.model)||compareText(a.dados.shift,b.dados.shift)||compareText(a.dados.filmPlan,b.dados.filmPlan)||compareText(a.id,b.id)).map(x=>{
     const r=x.dados, busy=locked(x);
-    return '<tr><td><b>'+esc(r.area)+'</b><div class="sub">'+esc(r.line)+'</div></td><td><b>'+esc(r.model)+'</b><div class="sub">'+esc(takeName(r.take))+'</div></td><td>'+esc(r.shift||'—')+'</td><td>'+step(r.filmOwner,r.filmPlan)+'</td><td>'+actual(r.filmDoer,r.filmDone)+'</td><td>'+step(r.analysisOwner,r.analysisPlan)+'</td><td>'+actual(r.analysisDoer,r.analysisDone)+'</td><td><span class="badge '+status(r)+'">'+labels[status(r)]+'</span>'+(busy?'<div class="sub">Em edição</div>':'')+'</td><td class="actions"><button class="secondary small" data-edit="'+esc(x.id)+'" '+(busy?'disabled title="Em edição por outra pessoa"':'')+'>Editar</button> <button class="secondary small" data-duplicate="'+esc(x.id)+'">Duplicar</button> <button class="danger small" data-delete="'+esc(x.id)+'" '+(busy?'disabled title="Em edição por outra pessoa"':'')+'>Excluir</button></td></tr>';
-  }).join('')||'<tr><td colspan="9" class="empty">Nenhuma tomada encontrada. Use “+ Adicionar tomada” para começar.</td></tr>';
+    return '<tr><td><input type="checkbox" data-select="'+esc(x.id)+'" aria-label="Selecionar '+esc(takeName(r.take))+'" '+(selectedIds.has(x.id)?'checked':'')+'></td><td><b>'+esc(r.area)+'</b><div class="sub">'+esc(r.line)+'</div></td><td><b>'+esc(r.model)+'</b><div class="sub">'+esc(takeName(r.take))+'</div></td><td>'+esc(r.shift||'—')+'</td><td>'+step(r.filmOwner,r.filmPlan)+'</td><td>'+actual(r.filmDoer,r.filmDone)+'</td><td>'+step(r.analysisOwner,r.analysisPlan)+'</td><td>'+actual(r.analysisDoer,r.analysisDone)+'</td><td><span class="badge '+status(r)+'">'+labels[status(r)]+'</span>'+(busy?'<div class="sub">Em edição</div>':'')+'</td><td class="actions"><button class="secondary small" data-edit="'+esc(x.id)+'" '+(busy?'disabled title="Em edição por outra pessoa"':'')+'>Editar</button> <button class="secondary small" data-duplicate="'+esc(x.id)+'">Duplicar</button> <button class="danger small" data-delete="'+esc(x.id)+'" '+(busy?'disabled title="Em edição por outra pessoa"':'')+'>Excluir</button></td></tr>';
+  }).join('')||'<tr><td colspan="10" class="empty">Nenhuma tomada encontrada. Use “+ Adicionar tomada” para começar.</td></tr>';
 }
 async function rpc(name,args){
   const {data,error}=await db.rpc('controle_'+name,args);
@@ -294,4 +298,81 @@ $('#applyReplace').onclick=()=>{
   changes.forEach(x=>$('#form').elements[x.name].value=x.after);
   previewReplacement();
   $('#replacePreview').textContent=changes.length?'Substituição aplicada no formulário. Clique em Salvar tomada para gravar.':'Nenhuma alteração aplicada.';
+};
+
+function updateBulkSelection(){
+ $('#bulkCount').textContent=selectedIds.size+' selecionada(s)';
+ $('#openBulk').disabled=!selectedIds.size||bulkRunning;
+}
+$('#records').addEventListener('change',e=>{
+ const id=e.target.dataset.select;if(!id)return;
+ if(e.target.checked)selectedIds.add(id);else selectedIds.delete(id);updateBulkSelection();
+});
+$('#selectFiltered').onclick=()=>{selectedIds=new Set(visibleIds);render()};
+$('#clearSelected').onclick=()=>{selectedIds.clear();render()};
+let bulkIds=[];
+function bulkPatch(){
+ const patch={};
+ document.querySelectorAll('[data-bulk-enable]:checked').forEach(c=>{
+  const key=c.dataset.bulkEnable,value=$('#bulk_'+key).value;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(value))throw Error('Preencha a data de todos os campos marcados.');
+  patch[key]=value;
+  if(key==='filmDone'||key==='analysisDone'){
+   const doer=key==='filmDone'?'filmDoer':'analysisDoer';
+   patch[doer]=clean($('#bulk_'+doer).value);
+   if(!patch[doer])throw Error('Informe quem realizou a etapa marcada.');
+  }
+ });
+ if(!Object.keys(patch).length)throw Error('Marque ao menos uma data para atualizar.');
+ return patch;
+}
+$('#bulkForm').addEventListener('change',e=>{
+ const key=e.target.dataset.bulkEnable;if(key){$('#bulk_'+key).disabled=!e.target.checked;$('#bulk_'+key).required=e.target.checked;}
+});
+$('#openBulk').onclick=()=>{
+ bulkIds=[...selectedIds];$('#bulkForm').reset();
+ document.querySelectorAll('[data-bulk-enable]').forEach(c=>{$('#bulk_'+c.dataset.bulkEnable).disabled=true;$('#bulk_'+c.dataset.bulkEnable).required=false;});
+ $('#bulkSummary').textContent=bulkIds.length+' tomada(s) selecionada(s). Confira a lista antes de confirmar:';
+ $('#bulkPreview').innerHTML=bulkIds.map(id=>{const r=rows.find(x=>x.id===id)?.dados;return '<div>'+esc([r?.model,r?.area,r?.take,r?.shift].filter(Boolean).join(' · '))+'</div>'}).join('');
+ $('#bulkResult').textContent='';$('#bulkEditor').showModal();
+};
+$('#bulkCancel').onclick=()=>{if(!bulkRunning)$('#bulkEditor').close()};
+$('#bulkEditor').addEventListener('cancel',e=>{if(bulkRunning)e.preventDefault()});
+async function saveBulkRow(id,patch){
+ const batchToken=crypto.randomUUID();let acquired=false;
+ try{
+  acquired=await rpc('bloquear',{p_id:id,p_token:batchToken});
+  if(!acquired)throw Error('Em edição por outra pessoa.');
+  const {data,error}=await db.from('controle_tomadas').select('id,dados,versao').eq('id',id).single();
+  if(error)throw error;
+  const dados={...data.dados,...patch};
+  if(!valid(dados))throw Error('Confira os responsáveis e as datas: a análise realizada exige filmagem realizada em data anterior ou igual.');
+  const ok=await rpc('salvar',{p_id:id,p_token:batchToken,p_versao:data.versao,p_dados:dados});
+  if(!ok)throw Error('A versão mudou ou o bloqueio expirou.');
+ }finally{
+  if(acquired)try{await rpc('liberar',{p_id:id,p_token:batchToken})}catch(e){}
+ }
+}
+$('#bulkForm').onsubmit=async e=>{
+ e.preventDefault();if(bulkRunning)return;
+ let patch;try{patch=bulkPatch()}catch(err){alert(err.message);return}
+ const names={filmPlan:'Filmagem prevista',filmDone:'Filmagem realizada',analysisPlan:'Análise prevista',analysisDone:'Análise realizada',filmDoer:'Realizou filmagem',analysisDoer:'Realizou análise'};
+ const detail=Object.entries(patch).map(([k,v])=>names[k]+': '+(k.endsWith('Doer')?v:date(v))).join('\n');
+ if(!confirm('Atualizar '+bulkIds.length+' tomada(s)?\n\n'+detail+'\n\nDatas já preenchidas nos campos marcados serão substituídas.'))return;
+ bulkRunning=true;$('#bulkSave').disabled=true;$('#bulkCancel').disabled=true;
+ const failures=[];let done=0;
+ try{
+  for(const id of bulkIds){
+   $('#bulkResult').textContent='Processando '+(done+failures.length+1)+' de '+bulkIds.length+'…';
+   try{await saveBulkRow(id,patch);done++;selectedIds.delete(id)}
+   catch(err){const r=rows.find(x=>x.id===id)?.dados;failures.push((r?.take||id)+': '+err.message)}
+  }
+  $('#bulkResult').textContent=done+' atualizada(s). '+failures.length+' não atualizada(s).';
+  $('#bulkPreview').textContent=failures.length?failures.join('\n'):'Todas as tomadas selecionadas foram atualizadas.';
+  $('#bulkPreview').style.whiteSpace='pre-wrap';
+  bulkIds=failures.length?bulkIds.filter(id=>selectedIds.has(id)):[];
+  await refresh();
+ }finally{
+  bulkRunning=false;$('#bulkSave').disabled=!bulkIds.length;$('#bulkCancel').disabled=false;updateBulkSelection();
+ }
 };
