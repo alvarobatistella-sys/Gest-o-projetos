@@ -303,6 +303,7 @@ $('#applyReplace').onclick=()=>{
 function updateBulkSelection(){
  $('#bulkCount').textContent=selectedIds.size+' selecionada(s)';
  $('#openBulk').disabled=!selectedIds.size||bulkRunning;
+ $('#openDuplicateBulk').disabled=!selectedIds.size||bulkRunning;
 }
 $('#records').addEventListener('change',e=>{
  const id=e.target.dataset.select;if(!id)return;
@@ -375,4 +376,45 @@ $('#bulkForm').onsubmit=async e=>{
  }finally{
   bulkRunning=false;$('#bulkSave').disabled=!bulkIds.length;$('#bulkCancel').disabled=false;updateBulkSelection();
  }
+};
+
+let duplicateBulkIds=[];
+function duplicateData(source,shift,filmPlan,analysisPlan){
+ const data={...source,shift,filmPlan,analysisPlan,take:takeName(source.take),filmDone:'',filmDoer:'',analysisDone:'',analysisDoer:''};
+ fields.forEach(k=>{if(data[k]==null)data[k]=''});
+ if(!valid(data))throw Error('Campos obrigatórios incompletos na tomada original.');
+ return data;
+}
+function duplicateKey(r){return JSON.stringify([r.area,r.line,r.model,takeName(r.take),r.shift,r.filmPlan,r.analysisPlan])}
+$('#openDuplicateBulk').onclick=()=>{
+ duplicateBulkIds=[...selectedIds];$('#duplicateBulkForm').reset();$('#duplicateBulkSave').disabled=false;
+ $('#duplicateBulkCount').textContent=duplicateBulkIds.length+' tomada(s) selecionada(s).';
+ $('#duplicateBulkPreview').textContent=duplicateBulkIds.map(id=>{const r=rows.find(x=>x.id===id)?.dados;return [r?.model,r?.area,r?.take,'Turno '+(r?.shift||'—')].join(' · ')}).join('\n');
+ $('#duplicateBulkResult').textContent='';$('#duplicateBulkEditor').showModal();
+};
+$('#duplicateBulkCancel').onclick=()=>{if(!bulkRunning)$('#duplicateBulkEditor').close()};
+$('#duplicateBulkEditor').addEventListener('cancel',e=>{if(bulkRunning)e.preventDefault()});
+$('#duplicateBulkForm').onsubmit=async e=>{
+ e.preventDefault();if(bulkRunning||!duplicateBulkIds.length)return;
+ const shift=$('#dupShift').value,filmPlan=$('#dupFilmPlan').value,analysisPlan=$('#dupAnalysisPlan').value;
+ if(!['1T','2T','3T'].includes(shift)||!/^\d{4}-\d{2}-\d{2}$/.test(filmPlan)||!/^\d{4}-\d{2}-\d{2}$/.test(analysisPlan))return;
+ if(!confirm('Criar até '+duplicateBulkIds.length+' novas tomadas?\nTurno: '+shift+'\nFilmagem prevista: '+date(filmPlan)+'\nAnálise prevista: '+date(analysisPlan)+'\n\nAs originais serão preservadas. Realizações das novas tomadas ficarão em branco. Combinações já existentes serão ignoradas.'))return;
+ bulkRunning=true;updateBulkSelection();$('#duplicateBulkSave').disabled=true;$('#duplicateBulkCancel').disabled=true;
+ let created=0,skipped=0;const issues=[];
+ try{
+  await refresh();const known=new Set(rows.map(x=>duplicateKey(x.dados)));
+  for(let i=0;i<duplicateBulkIds.length;i++){
+   const id=duplicateBulkIds[i];$('#duplicateBulkResult').textContent='Duplicando '+(i+1)+' de '+duplicateBulkIds.length+'…';
+   try{
+    const {data,error}=await db.from('controle_tomadas').select('id,dados').eq('id',id).single();if(error)throw error;
+    const dados=duplicateData(data.dados,shift,filmPlan,analysisPlan),key=duplicateKey(dados);
+    if(known.has(key)){skipped++;continue;}
+    const result=await rpc('criar',{p_dados:dados});if(!result)throw Error('Não foi possível confirmar a criação.');
+    known.add(key);created++;
+   }catch(err){const r=rows.find(x=>x.id===id)?.dados;issues.push((r?.take||id)+': '+err.message)}
+  }
+  $('#duplicateBulkResult').textContent=created+' criada(s), '+skipped+' combinação(ões) já existente(s), '+issues.length+' falha(s).';
+  $('#duplicateBulkPreview').textContent=issues.length?issues.join('\n')+'\nEm caso de falha de conexão, confira a lista antes de tentar novamente.':'Concluído. Use os filtros do novo turno para localizar as novas tomadas.';
+  duplicateBulkIds=[];await refresh();
+ }finally{bulkRunning=false;$('#duplicateBulkCancel').disabled=false;updateBulkSelection()}
 };
