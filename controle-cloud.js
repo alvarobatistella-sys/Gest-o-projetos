@@ -301,6 +301,11 @@ $('#applyReplace').onclick=()=>{
 };
 
 function updateBulkSelection(){
+ const all=$('#selectAllRows'),count=visibleIds.filter(id=>selectedIds.has(id)).length;
+ all.checked=visibleIds.length>0&&count===visibleIds.length;
+ all.indeterminate=count>0&&count<visibleIds.length;
+ all.disabled=!visibleIds.length||bulkRunning;
+
  $('#bulkCount').textContent=selectedIds.size+' selecionada(s)';
  $('#openBulk').disabled=!selectedIds.size||bulkRunning;
  $('#openDuplicateBulk').disabled=!selectedIds.size||bulkRunning;
@@ -418,3 +423,5 @@ $('#duplicateBulkForm').onsubmit=async e=>{
   duplicateBulkIds=[];await refresh();
  }finally{bulkRunning=false;$('#duplicateBulkCancel').disabled=false;updateBulkSelection()}
 };
+
+$('#selectAllRows').onchange=e=>{selectedIds=e.target.checked?new Set(visibleIds):new Set();render()};
