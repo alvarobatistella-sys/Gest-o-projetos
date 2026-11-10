@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.0';
-const db=createClient('https://pqhfltldtnmxvowhhkvu.supabase.co','sb_publishable_mkMZ7kF5RxWmaAma-wzWFA_WkiqCDQu');
+const db=createClient('https://ezvnnkyovmflawrphjoo.supabase.co','sb_publishable_M7uuHFZLfmuI02Ug_LlqCA_gIgstxbx');
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let user=null,records=[],people=[],editingId=null;
@@ -79,6 +79,6 @@ async function openDirect(){
  $('#personFilter').innerHTML='<option value="">Todos</option>'+options;
  const now=new Date(),local=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');$('#dayIn').value=local;$('#dayOut').value=local;
  await load();$('#content').hidden=false;$('#message').textContent=people.length?'Selecione seu nome e registre os horários.':'Nenhuma pessoa ativa. Cadastre as pessoas no Supabase.';
- }catch(err){$('#message').textContent='Não foi possível carregar: '+err.message+'. Execute acesso-direto-horas.sql no novo Supabase.'}
+ }catch(err){$('#message').textContent='Não foi possível carregar: '+err.message+'. Execute 01-criar-horas.sql no Supabase do planejamento.'}
 }
 await openDirect();

@@ -15,6 +15,11 @@ const labels = {done:'Concluída',late:'Atrasada',active:'Em andamento',planned:
 let rows=[], editing=null, token=null, version=null, currentUser=null, renewing=null, refreshing=false;
 const adminEmail='alvaro.batistella@method-flow.com';
 const siteUrl='https://alvarobatistella-sys.github.io/Gest-o-projetos/';
+const authLinkError=new URLSearchParams(location.hash.slice(1)).get('error_description');
+if(authLinkError){
+  history.replaceState(null,'',location.pathname+location.search);
+  setTimeout(()=>alert('O link de acesso é inválido ou expirou. Solicite um novo em “Esqueci a senha” ou “Reenviar acesso” e use somente o link mais recente.'),0);
+}
 let recoveryMode=location.hash.includes('type=recovery');
 function showRecovery(){
   recoveryMode=true;
@@ -149,15 +154,7 @@ async function enter(){
 }
 async function loadUsers(){
   const users=await rpc('listar_usuarios',{});
-  try{
-    const {data:{session}}=await db.auth.getSession();
-    const response=await fetch('https://pqhfltldtnmxvowhhkvu.supabase.co/functions/v1/sincronizar-nomes-horas',{
-      method:'POST',headers:{'Content-Type':'application/json','apikey':'sb_publishable_mkMZ7kF5RxWmaAma-wzWFA_WkiqCDQu'},
-      body:JSON.stringify({source_token:session?.access_token})
-    });
-    if(!response.ok)throw Error('Sincronização indisponível');
-    $('#hoursSyncStatus').textContent='Lista de nomes do controle de horas sincronizada.';
-  }catch(err){$('#hoursSyncStatus').textContent='Lista de horas ainda não sincronizada. Publique a função sincronizar-nomes-horas no novo Supabase e atualize esta página.';}
+  $('#hoursSyncStatus').textContent='Nomes do controle de horas vinculados aos usuários deste planejamento.';
 
   $('#users').innerHTML=users.map(u=>'<tr><td>'+esc(u.nome)+'</td><td>'+esc(u.email)+'</td><td>'+(u.confirmado?'E-mail confirmado':'Aguardando confirmação')+'</td><td>'+(u.email.toLowerCase()===adminEmail?'Administrador':'<button class="secondary small" data-resend="'+esc(u.email)+'" data-confirmed="'+u.confirmado+'">Reenviar acesso</button> <button class="danger small" data-remove="'+esc(u.email)+'">Remover acesso</button>')+'</td></tr>').join('');
 }
@@ -182,7 +179,7 @@ $('#users').onclick=async e=>{
         :await db.auth.resend({type:'signup',email,options:{emailRedirectTo:siteUrl}});
       if(result.error)throw result.error;
       alert(button.dataset.confirmed==='true'
-        ?'Mensagem enviada para '+email+'. A pessoa deve clicar no link e escolher uma nova senha.'
+        ?'Solicitação aceita para '+email+'. Confira a caixa de entrada e spam. Se não chegar, o administrador precisa verificar SMTP e logs de autenticação no Supabase.'
         :'Solicitação de reenvio feita para '+email+'. Se a pessoa ainda não clicou em “Criar acesso”, ela deve fazer isso primeiro.');
     }catch(err){alert('Não foi possível reenviar: '+err.message)}
     finally{button.disabled=false}
@@ -201,7 +198,7 @@ $('#loginForm').onsubmit=async e=>{
 };
 $('#signup').onclick=async()=>{
   if(!$('#email').reportValidity()||!$('#password').value){alert('Preencha o e-mail e uma senha antes de criar acesso.');return}
-  const {error}=await db.auth.signUp({email:$('#email').value.trim(),password:$('#password').value});
+  const {error}=await db.auth.signUp({email:$('#email').value.trim(),password:$('#password').value,options:{emailRedirectTo:siteUrl}});
   alert(error?'Não foi possível criar acesso: '+error.message:'Confira o e-mail de confirmação. O responsável também precisa autorizar este endereço no banco.');
 };
 $('#forgot').onclick=async()=>{
