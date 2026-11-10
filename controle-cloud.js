@@ -233,6 +233,11 @@ $('#form').onsubmit=async e=>{
   const dados=Object.fromEntries(fields.map(k=>[k,clean($('#form').elements[k].value)]));
   if(!valid(dados)){alert('Confira responsáveis e datas realizadas. A análise deve acontecer após a filmagem.');return}
   try{
+    if(!editing){
+      const {data:existing,error}=await db.from('controle_tomadas').select('id,dados');
+      if(error)throw error;
+      if(existing.some(x=>duplicateKey(x.dados)===duplicateKey(dados)))throw Error('Já existe uma tomada com a mesma área, linha, nome, modelo e turno. Altere esses campos para criar uma nova. Mudar somente as datas não permite duplicar.');
+    }
     const ok=editing?await rpc('salvar',{p_id:editing,p_token:token,p_versao:version,p_dados:dados}):await rpc('criar',{p_dados:dados});
     if(ok===false){alert('O bloqueio expirou ou esta tomada mudou. Reabra a tomada antes de salvar.');return}
     // A função salvar libera a reserva no banco.
@@ -390,7 +395,7 @@ function duplicateData(source,shift,filmPlan,analysisPlan){
  if(!valid(data))throw Error('Campos obrigatórios incompletos na tomada original.');
  return data;
 }
-function duplicateKey(r){return JSON.stringify([r.area,r.line,r.model,takeName(r.take),r.shift,r.filmPlan,r.analysisPlan])}
+function duplicateKey(r){return JSON.stringify([r.area,r.line,r.model,takeName(r.take),r.shift].map(v=>clean(v).toLocaleLowerCase('pt-BR')))}
 $('#openDuplicateBulk').onclick=()=>{
  duplicateBulkIds=[...selectedIds];$('#duplicateBulkForm').reset();$('#duplicateBulkSave').disabled=false;
  $('#duplicateBulkCount').textContent=duplicateBulkIds.length+' tomada(s) selecionada(s).';
@@ -403,7 +408,7 @@ $('#duplicateBulkForm').onsubmit=async e=>{
  e.preventDefault();if(bulkRunning||!duplicateBulkIds.length)return;
  const shift=$('#dupShift').value,filmPlan=$('#dupFilmPlan').value,analysisPlan=$('#dupAnalysisPlan').value;
  if(!['1T','2T','3T'].includes(shift)||!/^\d{4}-\d{2}-\d{2}$/.test(filmPlan)||!/^\d{4}-\d{2}-\d{2}$/.test(analysisPlan))return;
- if(!confirm('Criar até '+duplicateBulkIds.length+' novas tomadas?\nTurno: '+shift+'\nFilmagem prevista: '+date(filmPlan)+'\nAnálise prevista: '+date(analysisPlan)+'\n\nAs originais serão preservadas. Realizações das novas tomadas ficarão em branco. Combinações já existentes serão ignoradas.'))return;
+ if(!confirm('Criar até '+duplicateBulkIds.length+' novas tomadas?\nTurno: '+shift+'\nFilmagem prevista: '+date(filmPlan)+'\nAnálise prevista: '+date(analysisPlan)+'\n\nAs originais serão preservadas. Realizações das novas tomadas ficarão em branco. Tomadas com a mesma área, linha, nome, modelo e turno serão ignoradas, mesmo com datas diferentes.'))return;
  bulkRunning=true;updateBulkSelection();$('#duplicateBulkSave').disabled=true;$('#duplicateBulkCancel').disabled=true;
  let created=0,skipped=0;const issues=[];
  try{
