@@ -401,8 +401,8 @@ $('#bulkForm').onsubmit=async e=>{
 };
 
 let duplicateBulkIds=[];
-function duplicateData(source,shift,filmPlan,analysisPlan){
- const data={...source,shift,filmPlan,analysisPlan,take:takeName(source.take),filmDone:'',filmDoer:'',analysisDone:'',analysisDoer:''};
+function duplicateData(source,shift,filmPlan,analysisPlan,model=""){
+ const data={...source,model:model||source.model,shift,filmPlan,analysisPlan,take:takeName(source.take),filmDone:'',filmDoer:'',analysisDone:'',analysisDoer:''};
  fields.forEach(k=>{if(data[k]==null)data[k]=''});
  if(!valid(data))throw Error('Campos obrigatórios incompletos na tomada original.');
  return data;
@@ -418,9 +418,11 @@ $('#duplicateBulkCancel').onclick=()=>{if(!bulkRunning)$('#duplicateBulkEditor')
 $('#duplicateBulkEditor').addEventListener('cancel',e=>{if(bulkRunning)e.preventDefault()});
 $('#duplicateBulkForm').onsubmit=async e=>{
  e.preventDefault();if(bulkRunning||!duplicateBulkIds.length)return;
+ const model=$('#dupModel').value;
+ if(model&&!['Creta','HB20','I20'].includes(model))return;
  const shift=$('#dupShift').value,filmPlan=$('#dupFilmPlan').value,analysisPlan=$('#dupAnalysisPlan').value;
  if(!['1T','2T','3T'].includes(shift)||!/^\d{4}-\d{2}-\d{2}$/.test(filmPlan)||!/^\d{4}-\d{2}-\d{2}$/.test(analysisPlan))return;
- if(!confirm('Criar até '+duplicateBulkIds.length+' novas tomadas?\nTurno: '+shift+'\nFilmagem prevista: '+date(filmPlan)+'\nAnálise prevista: '+date(analysisPlan)+'\n\nAs originais serão preservadas. Realizações das novas tomadas ficarão em branco. Tomadas com a mesma área, linha, nome, modelo e turno serão ignoradas, mesmo com datas diferentes.'))return;
+ if(!confirm('Criar até '+duplicateBulkIds.length+' novas tomadas?\nModelo: '+(model||'Manter original')+'\nTurno: '+shift+'\nFilmagem prevista: '+date(filmPlan)+'\nAnálise prevista: '+date(analysisPlan)+'\n\nAs originais serão preservadas. Realizações das novas tomadas ficarão em branco. Tomadas com a mesma área, linha, nome, modelo e turno serão ignoradas, mesmo com datas diferentes.'))return;
  bulkRunning=true;updateBulkSelection();$('#duplicateBulkSave').disabled=true;$('#duplicateBulkCancel').disabled=true;
  let created=0,skipped=0;const issues=[];
  try{
@@ -429,7 +431,7 @@ $('#duplicateBulkForm').onsubmit=async e=>{
    const id=duplicateBulkIds[i];$('#duplicateBulkResult').textContent='Duplicando '+(i+1)+' de '+duplicateBulkIds.length+'…';
    try{
     const {data,error}=await db.from('controle_tomadas').select('id,dados').eq('id',id).single();if(error)throw error;
-    const dados=duplicateData(data.dados,shift,filmPlan,analysisPlan),key=duplicateKey(dados);
+    const dados=duplicateData(data.dados,shift,filmPlan,analysisPlan,model),key=duplicateKey(dados);
     if(known.has(key)){skipped++;continue;}
     const result=await rpc('criar',{p_dados:dados});if(!result)throw Error('Não foi possível confirmar a criação.');
     known.add(key);created++;
