@@ -337,11 +337,12 @@ function bulkPatch(){
  if(!Object.keys(patch).length)throw Error('Marque ao menos uma data para atualizar.');
  return patch;
 }
+$('#bulkForm').noValidate=true;
 $('#bulkForm').addEventListener('change',e=>{
  const key=e.target.dataset.bulkEnable;if(key){$('#bulk_'+key).disabled=!e.target.checked;$('#bulk_'+key).required=e.target.checked;}
 });
 $('#openBulk').onclick=()=>{
- bulkIds=[...selectedIds];$('#bulkForm').reset();
+ bulkIds=[...selectedIds];$('#bulkForm').reset();$('#bulkSave').disabled=false;
  document.querySelectorAll('[data-bulk-enable]').forEach(c=>{$('#bulk_'+c.dataset.bulkEnable).disabled=true;$('#bulk_'+c.dataset.bulkEnable).required=false;});
  $('#bulkSummary').textContent=bulkIds.length+' tomada(s) selecionada(s). Confira a lista antes de confirmar:';
  $('#bulkPreview').innerHTML=bulkIds.map(id=>{const r=rows.find(x=>x.id===id)?.dados;return '<div>'+esc([r?.model,r?.area,r?.take,r?.shift].filter(Boolean).join(' · '))+'</div>'}).join('');
@@ -356,17 +357,27 @@ async function saveBulkRow(id,patch){
   if(!acquired)throw Error('Em edição por outra pessoa.');
   const {data,error}=await db.from('controle_tomadas').select('id,dados,versao').eq('id',id).single();
   if(error)throw error;
-  const dados={...data.dados,...patch};
-  if(!valid(dados))throw Error('Confira os responsáveis e as datas: a análise realizada exige filmagem realizada em data anterior ou igual.');
+  const base={...data.dados};
+  fields.forEach(k=>{base[k]=String(base[k]??'')});
+  const dados={...base,...patch};
+  if(!valid(dados)){
+   const missing=['area','line','take','filmOwner','filmPlan','analysisOwner','analysisPlan'].filter(k=>!dados[k]);
+   if(missing.length)throw Error('Cadastro original incompleto: '+missing.join(', ')+'. Abra Editar e complete os campos.');
+   if(dados.analysisDone&&(!dados.filmDone||dados.analysisDone<dados.filmDone))throw Error('A análise já realizada ('+date(dados.analysisDone)+') não pode ficar antes da filmagem realizada ('+date(dados.filmDone)+').');
+   throw Error('Confira turno e os pares de data/responsável realizados no cadastro original.');
+  }
   const ok=await rpc('salvar',{p_id:id,p_token:batchToken,p_versao:data.versao,p_dados:dados});
-  if(!ok)throw Error('A versão mudou ou o bloqueio expirou.');
+  if(ok===false)throw Error('A versão mudou ou o bloqueio expirou.');
+  const check=await db.from('controle_tomadas').select('dados').eq('id',id).single();
+  if(check.error)throw check.error;
+  if(Object.entries(patch).some(([key,value])=>check.data.dados[key]!==value))throw Error('O banco não confirmou os novos valores. Atualize a página e tente novamente.');
  }finally{
   if(acquired)try{await rpc('liberar',{p_id:id,p_token:batchToken})}catch(e){}
  }
 }
 $('#bulkForm').onsubmit=async e=>{
  e.preventDefault();if(bulkRunning)return;
- let patch;try{patch=bulkPatch()}catch(err){alert(err.message);return}
+ let patch;try{patch=bulkPatch()}catch(err){$('#bulkResult').textContent=err.message;alert(err.message);return}
  const names={filmPlan:'Filmagem prevista',filmDone:'Filmagem realizada',analysisPlan:'Análise prevista',analysisDone:'Análise realizada',filmDoer:'Realizou filmagem',analysisDoer:'Realizou análise'};
  const detail=Object.entries(patch).map(([k,v])=>names[k]+': '+(k.endsWith('Doer')?v:date(v))).join('\n');
  if(!confirm('Atualizar '+bulkIds.length+' tomada(s)?\n\n'+detail+'\n\nDatas já preenchidas nos campos marcados serão substituídas.'))return;
@@ -381,6 +392,7 @@ $('#bulkForm').onsubmit=async e=>{
   $('#bulkResult').textContent=done+' atualizada(s). '+failures.length+' não atualizada(s).';
   $('#bulkPreview').textContent=failures.length?failures.join('\n'):'Todas as tomadas selecionadas foram atualizadas.';
   $('#bulkPreview').style.whiteSpace='pre-wrap';
+  $('#bulkResult').scrollIntoView({block:'nearest'});
   bulkIds=failures.length?bulkIds.filter(id=>selectedIds.has(id)):[];
   await refresh();
  }finally{
