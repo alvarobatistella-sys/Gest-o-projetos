@@ -402,7 +402,7 @@ $('#bulkForm').onsubmit=async e=>{
 
 let duplicateBulkIds=[];
 function duplicateData(source,shift,filmPlan,analysisPlan,model="",take=""){
- const data={...source,model:model||source.model,shift:shift||source.shift,filmPlan:filmPlan||source.filmPlan,analysisPlan:analysisPlan||source.analysisPlan,take:takeName(clean(take)||source.take)};
+ const data={...source,model:model||source.model,shift:shift||source.shift,filmPlan:filmPlan||source.filmPlan,analysisPlan:analysisPlan||source.analysisPlan,take:takeName(clean(take)||source.take),line:clean(take)?takeName(clean(take)):source.line};
  fields.forEach(k=>{if(data[k]==null)data[k]=''});
  if(!valid(data))throw Error('Campos obrigatórios incompletos na tomada original.');
  return data;
