@@ -402,7 +402,7 @@ $('#bulkForm').onsubmit=async e=>{
 
 let duplicateBulkIds=[];
 function duplicateData(source,shift,filmPlan,analysisPlan,model="",take=""){
- const data={...source,model:model||source.model,shift,filmPlan:filmPlan||source.filmPlan,analysisPlan:analysisPlan||source.analysisPlan,take:takeName(clean(take)||source.take),filmDone:'',filmDoer:'',analysisDone:'',analysisDoer:''};
+ const data={...source,model:model||source.model,shift:shift||source.shift,filmPlan:filmPlan||source.filmPlan,analysisPlan:analysisPlan||source.analysisPlan,take:takeName(clean(take)||source.take)};
  fields.forEach(k=>{if(data[k]==null)data[k]=''});
  if(!valid(data))throw Error('Campos obrigatórios incompletos na tomada original.');
  return data;
@@ -421,8 +421,8 @@ $('#duplicateBulkForm').onsubmit=async e=>{
  const model=$('#dupModel').value,take=clean($('#dupTake').value);
  if(model&&!['Creta','HB20','I20'].includes(model))return;
  const shift=$('#dupShift').value,filmPlan=$('#dupFilmPlan').value,analysisPlan=$('#dupAnalysisPlan').value;
- if(!['1T','2T','3T'].includes(shift)||(filmPlan&&!/^\d{4}-\d{2}-\d{2}$/.test(filmPlan))||(analysisPlan&&!/^\d{4}-\d{2}-\d{2}$/.test(analysisPlan)))return;
- if(!confirm('Criar até '+duplicateBulkIds.length+' novas tomadas?\nModelo: '+(model||'Manter original')+'\nTurno: '+shift+'\nPosto / tomada: '+(take||'Manter original')+'\nFilmagem prevista: '+(filmPlan?date(filmPlan):'Manter original')+'\nAnálise prevista: '+(analysisPlan?date(analysisPlan):'Manter original')+'\n\nAs originais serão preservadas. Realizações das novas tomadas ficarão em branco. Tomadas com a mesma área, linha, nome, modelo e turno serão ignoradas, mesmo com datas diferentes.'))return;
+ if(!['','1T','2T','3T'].includes(shift)||(filmPlan&&!/^\d{4}-\d{2}-\d{2}$/.test(filmPlan))||(analysisPlan&&!/^\d{4}-\d{2}-\d{2}$/.test(analysisPlan)))return;
+ if(!confirm('Criar até '+duplicateBulkIds.length+' novas tomadas?\nModelo: '+(model||'Manter original')+'\nTurno: '+(shift||'Manter turno de cada original')+'\nPosto / tomada: '+(take||'Manter original')+'\nFilmagem prevista: '+(filmPlan?date(filmPlan):'Manter original')+'\nAnálise prevista: '+(analysisPlan?date(analysisPlan):'Manter original')+'\n\nAs originais serão preservadas. Datas e responsáveis realizados serão mantidos como no original. Tomadas com a mesma área, linha, nome, modelo e turno serão ignoradas, mesmo com datas diferentes.'))return;
  bulkRunning=true;updateBulkSelection();$('#duplicateBulkSave').disabled=true;$('#duplicateBulkCancel').disabled=true;
  let created=0,skipped=0;const issues=[];
  try{
