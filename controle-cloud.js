@@ -86,13 +86,26 @@ async function rpc(name,args){
   if(error) throw error;
   return data;
 }
+async function loadAllTomadas(){
+ const all=[];let offset=0,total=null;
+ while(total===null||offset<total){
+  const {data,error,count}=await db.from('controle_tomadas')
+   .select('id,dados,versao,bloqueado_por,bloqueado_ate',{count:'exact'})
+   .order('id',{ascending:true}).range(offset,offset+499);
+  if(error)throw error;
+  if(count!==null&&count!==undefined)total=count;
+  if(!data?.length){if(total!==null&&offset<total)throw Error('Carregamento incompleto. Atualize novamente.');break;}
+  all.push(...data);offset+=data.length;
+  $('#connectionStatus').textContent='Carregando '+offset+(total!==null?' de '+total:'')+' tomadas…';
+  if(total===null&&data.length<500)break;
+ }
+ return [...new Map(all.map(row=>[row.id,row])).values()];
+}
 async function refresh(){
   if(!currentUser||refreshing)return;
   refreshing=true;
   try{
-    const {data,error}=await db.from('controle_tomadas').select('id,dados,versao,bloqueado_por,bloqueado_ate').order('atualizado_em',{ascending:false});
-    if(error)throw error;
-    rows=data;
+    rows=await loadAllTomadas();
     $('#connectionStatus').textContent='Dados atualizados';
     render();
   }catch(e){$('#connectionStatus').textContent='Sem conexão com a base — alterações indisponíveis';}
@@ -234,8 +247,7 @@ $('#form').onsubmit=async e=>{
   if(!valid(dados)){alert('Confira responsáveis e datas realizadas. A análise deve acontecer após a filmagem.');return}
   try{
     if(!editing){
-      const {data:existing,error}=await db.from('controle_tomadas').select('id,dados');
-      if(error)throw error;
+      const existing=await loadAllTomadas();
       if(existing.some(x=>duplicateKey(x.dados)===duplicateKey(dados)))throw Error('Já existe uma tomada com a mesma área, linha, nome, modelo e turno. Altere esses campos para criar uma nova. Mudar somente as datas não permite duplicar.');
     }
     const ok=editing?await rpc('salvar',{p_id:editing,p_token:token,p_versao:version,p_dados:dados}):await rpc('criar',{p_dados:dados});
